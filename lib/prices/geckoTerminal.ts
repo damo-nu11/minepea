@@ -80,7 +80,9 @@ export interface TokenMarketWire {
   marketCapUsd: number | null;
   /** 24h SWAP volume. Not the same thing as ETH deployed into rounds. */
   volume24hUsd: number | null;
-  /** Total reserve across the token's pools. */
+  /** USD reserve of the DEEPEST pool, which is what aggregators publish as
+   * liquidity. Falls back to the token endpoint's total_reserve_in_usd when
+   * the pool reports none; the two differ by several times on the same pair. */
   liquidityUsd: number | null;
 }
 

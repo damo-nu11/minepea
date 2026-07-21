@@ -245,15 +245,20 @@ export function LineChart({
               strokeOpacity="0.5"
               strokeDasharray="3 3"
             />
-            {series.map((s) => (
-              <circle
-                key={s.name}
-                cx={xOf(s.points[hoverI].t)}
-                cy={yOf(s.points[hoverI].v)}
-                r="3"
-                fill={s.color}
-              />
-            ))}
+            {series.map((s) => {
+              // hoverI is derived from series[0]; a shorter series would throw
+              // here on the right-hand side of the chart.
+              const p = s.points[hoverI];
+              return p ? (
+                <circle
+                  key={s.name}
+                  cx={xOf(p.t)}
+                  cy={yOf(p.v)}
+                  r="3"
+                  fill={s.color}
+                />
+              ) : null;
+            })}
           </g>
         )}
       </svg>
@@ -272,17 +277,20 @@ export function LineChart({
           <div className="text-[10px] font-medium text-fg-muted">
             {xFmt(times[hoverI])}
           </div>
-          {series.map((s) => (
-            <div key={s.name} className="flex items-center gap-1.5">
-              <span
-                className="size-1.5 rounded-full"
-                style={{ background: s.color }}
-              />
-              <span className="tnum text-[11px] font-semibold text-fg">
-                {yFmt(s.points[hoverI].v)}
-              </span>
-            </div>
-          ))}
+          {series.map((s) => {
+            const p = s.points[hoverI];
+            return p ? (
+              <div key={s.name} className="flex items-center gap-1.5">
+                <span
+                  className="size-1.5 rounded-full"
+                  style={{ background: s.color }}
+                />
+                <span className="tnum text-[11px] font-semibold text-fg">
+                  {yFmt(p.v)}
+                </span>
+              </div>
+            ) : null;
+          })}
         </div>
       )}
       {/* Legend */}

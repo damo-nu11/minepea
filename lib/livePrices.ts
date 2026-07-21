@@ -2,8 +2,11 @@
  * Live ETH/USD price store (user request 2026-07-12) — the shell's first
  * real external data. Polls Coinbase's public spot endpoint (CORS-open, no
  * key) every 30s and exposes the price through the same Store seam as
- * everything else. `usePrices` overlays it on the engine's simulated feed:
- * ETH becomes real, PEA stays simulated (no real market exists yet).
+ * everything else. This file now holds BOTH real price legs: ETH from
+ * Coinbase spot, PEA from our cached GeckoTerminal route. `usePrices`
+ * overlays each independently, and either falls back to whatever the engine
+ * or backend published when its source has nothing. The engine publishes 0
+ * for PEA, which every surface renders as an em-dash.
  *
  * - No module-scope side effects: polling lazy-starts on first subscribe
  *   and stops on last unsubscribe (Convention 7).

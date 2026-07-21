@@ -497,7 +497,11 @@ const TokenTab = memo(function TokenTab() {
               },
             ]}
             yFmt={peaCompact}
-            label={`Circulating supply, now ${fmtInt(a.circulatingPea)} PEA`}
+            label={`Circulating supply over time${
+              sv.circulating != null
+                ? `, now ${fmtInt(sv.circulating)} PEA`
+                : ""
+            }`}
           />
         </ChartCard>
         <ChartCard
@@ -536,7 +540,7 @@ const TokenTab = memo(function TokenTab() {
               },
             ]}
             yFmt={(v) => v.toFixed(2)}
-            label={`MCAP to FDV ratio, now ${(a.circulatingPea / a.maxSupplyPea).toFixed(2)}`}
+            label="Market cap to FDV ratio over time"
           />
         </ChartCard>
         <ChartCard title="Holders by Size" subtitle="Wallets by PEA held">
