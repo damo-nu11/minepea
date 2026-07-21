@@ -50,13 +50,13 @@ export function addressUrl(address: string): string {
 /** The deployed contracts */
 export const CONTRACTS = {
   /** PEA ERC-20 token (balance reads, approvals). */
-  peaToken: "0xe158E2E7b750fA971b12Fb2bF2A7262f94010aC8",
+  peaToken: "0xfe177128Df8d336cAf99F787b72183D1E68Ff9c2",
   /** Grid mining game — deploy() / claims / checkpoint. */
-  gridMining: "0xC2fe80baB61020a6B46F35eC304Ce8479c1f0f2B",
+  gridMining: "0x46D5459F439E64B8CC2D02e89b137608eA5711CE",
   /** Protocol treasury (fee vault + buybacks). */
-  treasury: "0x62251E73d86c57Fc01c6D547841A0E625c418295",
+  treasury: "0x78Df583557baa1b9C8b8839BeCAAe2eD665Bd7e6",
   /** AutoMiner — multi-round auto-deploy config + deposit. */
-  autoMiner: "0x52319c4b87966bAA4679E8885D24eDe74fC92f0C",
+  autoMiner: "0x88d3Eb3b38dFb9A62b435809144c771e9cAb64a1",
   /** PEA staking pool. */
-  staking: "0x91a662EF4576EA85a8C850Cf797029993f0aE62c",
+  staking: "0x98842D64E73A7196c90606Dea66B666D088cC4fB",
 } as const satisfies Record<string, Address>;
