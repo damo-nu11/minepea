@@ -1,0 +1,257 @@
+@import "tailwindcss";
+
+/*
+ * PEA design tokens — canonical values live in the project docs's token table;
+ * this file must always match it (Hard Rule 2/4).
+ *
+ * VOLTAGE direction (moodboard option 03, user-chosen 2026-07-12):
+ * pure black ground, electric #CCFF00 accent, lime-tinted surfaces and
+ * hairlines, white type, coral timer. Primary actions are lime OUTLINES
+ * that fill on hover (see ConnectButton / CTA components).
+ *
+ * All color tokens use Tailwind v4's --color-* namespace so utilities
+ * generate (bg-bg, text-fg, border-line-slate, ...). Never use --text-*
+ * names — that namespace is font-size in Tailwind v4.
+ */
+@theme {
+  --color-bg: #000000;
+  --color-surface: #0a0b05;
+  --color-surface-deep: #070803;
+  --color-surface-active: #151a05;
+  --color-line-faint: #1a2100;
+  --color-line-slate: #2e3a00;
+  --color-fg: #ffffff;
+  --color-fg-body: #b9bdae;
+  --color-fg-muted: #767d6c;
+  --color-fg-disabled: #4e533f;
+  --color-ghost: #3a421c;
+  --color-ghost-content: #1e240a;
+  --color-accent: #ccff00;
+  --color-danger: #ff5c5c;
+  --color-btn-white: #ffffff;
+  --color-on-light: #000000;
+  --color-bar-from: #0a0c02;
+  --color-bar-to: #131804;
+  --color-dot: #141903;
+  --color-underline-dot: #3e4a10;
+  /* Elevated analytics panel (Explore v2 visual pass 2026-07-13): cards
+     must read clearly lighter than the pure-black page. */
+  --color-panel: #0f1308;
+  /* Panel border: a step brighter than line-slate so card edges carry
+     real weight at 1.5px (user: hairlines read cheap). */
+  --color-panel-line: #3a4a0e;
+  --color-th: #767d6c;
+
+  /* One brand face everywhere (user 2026-07-15): Unbounded carries headings,
+     labels, body AND numbers — matching the marketing content. Loaded as the
+     variable font, so hierarchy comes from WEIGHT (light labels → heavy
+     values), not from a second family. Inter is gone. */
+  --font-sans:
+    var(--font-unbounded), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-wordmark: var(--font-unbounded), sans-serif;
+}
+
+/* Tabular figures for all numeric chrome (Convention 6). */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Uppercase letterspaced micro-label (ui-spec §1.2). */
+@utility micro-label {
+  font-size: 11px;
+  /* Unbounded runs far heavier than the old UI face at the same number, so
+     captions sit at 300 (light) — the thin end of the variable axis. Keeps a
+     real gap between labels and the bold values they sit under. */
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+/* Soft dark fringe around glyphs/icons so content passing beneath them
+   (e.g. the LAST ROUND progress line) visibly reads as BEHIND the text.
+   drop-shadow (not text-shadow) so inline SVGs get the halo too. */
+@utility text-halo {
+  filter: drop-shadow(0 0 2px var(--color-bg))
+    drop-shadow(0 0 3px var(--color-bg));
+}
+
+/* Dashed-underline tooltip affordance (ui-spec §1.2). The help cursor
+   signals the hover tooltip (user direction 2026-07-13). */
+@utility dashed-underline {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-underline-dot);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  cursor: help;
+}
+
+/* Frosted-glass modules — the Frosted Deck deploy controls (user 2026-07-15):
+   a translucent fill, a 1px lime top edge-light, a token hairline, and a soft
+   lift, so panes read as backlit glass on the void. Lime/hairline alphas come
+   from color-mix on the tokens (no hardcoded palette hex per the token rule);
+   the neutral white/black glass + drop shadows are structural. */
+@utility glass-pane {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.055),
+    rgba(255, 255, 255, 0.02)
+  );
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-accent) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-line-slate) 55%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.55);
+}
+@utility glass-sub {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-accent) 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-line-slate) 55%, transparent);
+}
+@utility glass-key {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-line-slate) 70%, transparent);
+}
+@utility glass-max {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-accent) 30%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+@utility glass-deploy {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 16%, transparent),
+    color-mix(in srgb, var(--color-accent) 5%, transparent)
+  );
+  backdrop-filter: blur(12px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-accent) 50%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent),
+    0 0 24px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+/* Plinko stalk idle sway (prototype board): gentle pendulum around the
+   rail attach point; disabled under reduced motion. */
+/* Wheel: the idle ball breathes at the hub's heart. */
+/* Shared focus treatment (ported from the art sub-app per the
+   consistency audit): one ring for every interactive element. */
+@utility focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Sway for something ROOTED at its base (the vine sprout): same
+   keyframes as board-sway, pivoting at the bottom instead of the top. */
+/* Hover on the board is triggered hundreds of times a round while the
+   reveal plays once, yet it had no timing at all: six things changed in
+   a single frame including a 6-unit jump. Eased, and asymmetric the way
+   light behaves — quick to arrive, slower to fade. */
+.vn-lift {
+  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.vn-fade {
+  transition: opacity 180ms ease-out;
+}
+.vn-fade-on {
+  transition: opacity 90ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vn-lift,
+  .vn-fade,
+  .vn-fade-on {
+    transition: none;
+  }
+}
+
+.board-sway-rooted {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: plinko-sway 5.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-sway-rooted {
+    animation: none;
+  }
+}
+
+/* Freeze a board animation in place (class stays mounted so the pose
+   holds where the keyframe left it instead of snapping to rest). */
+.board-hold {
+  animation-play-state: paused;
+}
+
+@keyframes wheel-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+.wheel-breathe {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: wheel-breathe 3.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel-breathe {
+    animation: none;
+  }
+}
+
+@keyframes plinko-sway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.6deg);
+  }
+}
+.plinko-sway,
+.board-sway {
+  animation: plinko-sway 5.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plinko-sway,
+  .board-sway {
+    animation: none;
+  }
+}
+
+/* Hide scrollbars where a visible track reads as cheap (the Explore tab rail
+   and table scrollers). Plain author CSS — a Tailwind @utility with a nested
+   ::-webkit-scrollbar silently generated nothing. Scroll still works; a fade /
+   peeked next row signals there's more. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  /* Never show the text-selection I-beam over copy/numbers (user direction
+     2026-07-13): arrow everywhere, pointer on interactive elements (their
+     own cursor-pointer / UA link rule wins), help on tooltip labels. */
+  cursor: default;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-on-light);
+}

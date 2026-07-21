@@ -1,0 +1,32 @@
+#!/bin/sh
+# Forbidden-terms gate: the legacy token name must never reach app copy,
+# code, or filenames. On-chain ABI symbols are exempt (lib/abi/ only) —
+# the contracts kept their original internal names.
+#
+# Enabled via: git config core.hooksPath scripts/githooks
+# (survives fresh clones, unlike hooks installed into .git/hooks)
+
+# Built by concatenation so this hook never matches itself.
+TERM="b""ean"
+
+fail=0
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+  case "$f" in
+    lib/abi/*|scripts/githooks/*) continue ;;
+  esac
+  if printf '%s' "$f" | grep -qi "$TERM"; then
+    echo "forbidden term in filename: $f" >&2
+    fail=1
+  fi
+  # -I skips binary files; scan the STAGED content, not the worktree.
+  if git show ":$f" 2>/dev/null | grep -qiI "$TERM"; then
+    echo "forbidden term in staged content: $f" >&2
+    fail=1
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "commit blocked — remove the forbidden term(s) above" >&2
+  exit 1
+fi
+exit 0
