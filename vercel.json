@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/discord-roles",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/peapot",
+      "schedule": "*/3 * * * *"
     }
   ]
 }
