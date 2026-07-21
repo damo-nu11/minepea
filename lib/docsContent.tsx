@@ -165,7 +165,16 @@ export const DOCS_SECTIONS: DocsSection[] = [
             .
           </li>
           <li>
-            <B>GitHub</B>: open-source code and audits. (Link coming soon.)
+            <B>GitHub</B>:{" "}
+            <a
+              href="https://github.com/damo-nu11/minepea"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="focus-ring rounded-sm text-accent underline-offset-2 hover:underline"
+            >
+              the source code for this site
+            </a>
+            .
           </li>
           <li>
             <B>X</B>:{" "}

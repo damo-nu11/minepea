@@ -167,7 +167,9 @@ export function Header() {
             <DiscordIcon size={19} />
           </a>
           <a
-            href="#"
+            href="https://github.com/damo-nu11/minepea"
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label="GitHub"
             className="p-1.5 transition-colors hover:text-fg"
           >
