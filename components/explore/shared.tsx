@@ -13,7 +13,7 @@ import {
   EthIcon,
   PeaIcon,
 } from "@/components/icons";
-import { fmtCompact, fmtInt } from "@/lib/format";
+import { fmtCompact, fmtInt, fmtUsd } from "@/lib/format";
 import type { RoundSummaryVM } from "@/lib/types";
 
 // Token-pure series palette (chart kit takes CSS vars).
@@ -26,6 +26,14 @@ export const C = {
 
 export const usdCompact = (v: number) => `$${fmtCompact(v)}`;
 export const peaCompact = (v: number) => fmtCompact(v);
+/** USD that stays readable at both ends: compact above 10k, exact below.
+ * `usdCompact` alone renders a $0.02 pool as "$0.0". */
+export const usdAuto = (v: number | null | undefined) =>
+  v === null || v === undefined
+    ? "—"
+    : Math.abs(v) >= 10_000
+      ? `$${fmtCompact(v)}`
+      : fmtUsd(v);
 export const pct1 = (v: number) => `${v.toFixed(1)}%`;
 
 export function StatCard({
@@ -44,10 +52,10 @@ export function StatCard({
       <div className="flex flex-col gap-3 rounded-[11px] border border-line-slate/50 p-5">
         <span className="text-[13px] font-medium text-fg-muted">{title}</span>
         <div className="flex flex-col items-center gap-1 py-2">
-        <span
-          className={`tnum text-[34px] font-bold leading-none ${accent ? "text-accent" : "text-fg"}`}
-        >
-          {value}
+          <span
+            className={`tnum text-[34px] font-bold leading-none ${accent ? "text-accent" : "text-fg"}`}
+          >
+            {value}
           </span>
           <span className="text-[13px] text-fg-muted">{caption}</span>
         </div>
@@ -69,7 +77,9 @@ export function ChartCard({
     <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">{title}</h3>
+          <h3 className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">
+            {title}
+          </h3>
           {subtitle && (
             <p className="mt-0.5 text-[12.5px] text-fg-muted">{subtitle}</p>
           )}
@@ -254,8 +264,7 @@ export function Pager({
 
 /** Colored day/week/month change cell: lime up, coral down, muted flat. */
 export function DiffCell({ v }: { v: number }) {
-  const color =
-    v > 0 ? "text-accent" : v < 0 ? "text-danger" : "text-fg-muted";
+  const color = v > 0 ? "text-accent" : v < 0 ? "text-danger" : "text-fg-muted";
   return (
     <span className={`tnum ${color}`}>
       {v === 0 ? "0%" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`}

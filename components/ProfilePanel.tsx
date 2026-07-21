@@ -653,8 +653,8 @@ export function ProfilePanel({
               </Row>
             </div>
             <p className="mt-1 text-[11.5px] leading-snug text-fg-muted">
-              PEA pays out net of the 10% harvest fee; unclaimed PEA keeps
-              earning harvested yield.
+              PEA pays out net of the 10% harvest fee; that fee is shared among
+              miners still holding unharvested PEA.
             </p>
           </>
         )}

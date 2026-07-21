@@ -72,7 +72,8 @@ export interface RoundSummaryWire {
   winnerName?: string;
   isSplit: boolean;
   winnerCount: number;
-  /** Invariant: deployedWei = vaultedWei + winningsWei (vaulted = 10% fee). */
+  /** Invariant: deployedWei = vaultedWei + winningsWei. Vaulted is the flat
+   * 10% protocol fee, or 100% when the drawn tile had no miners on it. */
   deployedWei: string;
   vaultedWei: string;
   winningsWei: string;

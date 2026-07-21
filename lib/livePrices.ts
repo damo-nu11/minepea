@@ -58,3 +58,58 @@ class LiveEthPriceStore {
 }
 
 export const liveEthPrice = new LiveEthPriceStore();
+
+/**
+ * Live PEA/USD, read from our own cached /api/price-chart (GeckoTerminal spot
+ * for the pool behind the Explore chart).
+ *
+ * It deliberately shares the chart's single source. The alternative, giving
+ * the rail its own price feed, is how a page ends up quoting one number beside
+ * a chart drawn from another.
+ *
+ * Polls our origin, not GeckoTerminal: the route is cached for 5 minutes, so
+ * this costs nothing upstream no matter how many tabs are open.
+ */
+class LivePeaPriceStore {
+  private listeners = new Set<Listener>();
+  private price: number | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  subscribe = (cb: Listener): (() => void) => {
+    this.listeners.add(cb);
+    if (!this.timer && process.env.NODE_ENV !== "test") {
+      void this.poll();
+      this.timer = setInterval(() => void this.poll(), PEA_POLL_MS);
+    }
+    return () => {
+      this.listeners.delete(cb);
+      if (this.listeners.size === 0 && this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+    };
+  };
+
+  getSnapshot = (): number | null => this.price;
+  getServerSnapshot = (): number | null => null;
+
+  private async poll() {
+    try {
+      const res = await fetch("/api/price-chart");
+      if (!res.ok) return; // keep last known price
+      const body = (await res.json()) as { priceUsd?: number | null };
+      const p = Number(body.priceUsd);
+      if (Number.isFinite(p) && p > 0 && p !== this.price) {
+        this.price = p;
+        for (const cb of this.listeners) cb();
+      }
+    } catch {
+      // Network hiccup — keep the last known (or simulated fallback).
+    }
+  }
+}
+
+/** The route caches for 5 min; polling faster only burns our own bandwidth. */
+const PEA_POLL_MS = 60_000;
+
+export const livePeaPrice = new LivePeaPriceStore();

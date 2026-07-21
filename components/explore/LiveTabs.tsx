@@ -10,11 +10,13 @@
  * peapot-pot-over-rounds and the harvesting-APR 1D/7D/30D lines.
  */
 
-import { memo, useState } from "react";
+import { memo } from "react";
 import { BarChart } from "@/components/charts/BarChart";
 import { LineChart } from "@/components/charts/LineChart";
+import { PriceChart } from "@/components/explore/PriceChart";
+import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { fmtDate } from "@/components/charts/scale";
-import { PeaIcon } from "@/components/icons";
+
 import { RelTime } from "@/components/RelTime";
 import { txUrl } from "@/lib/contracts";
 import {
@@ -46,7 +48,7 @@ import {
   TableScroller,
   TD,
   TH,
-  usdCompact,
+  usdAuto,
   usePage,
   ValueWithIcon,
 } from "./shared";
@@ -75,9 +77,10 @@ export function LiveHero() {
     prices.data && prices.data.peaUsd > 0 ? prices.data.peaUsd : null;
 
   const volume = seriesPoints(mining.data, "deployVolume", "total");
-  const [range, setRange] = useState<30 | 90 | 180>(90);
-
-  const circulating = stat(token.data, "circulatingSupply");
+  // Same GeckoTerminal payload the chart is drawn from (see usePriceChart).
+  const md = useMarketData().data;
+  const sv = supplyView(md?.market, md?.priceUsd);
+  const m = md?.market;
   const maxSupply = stat(token.data, "maxSupply");
   const allTime = stat(mining.data, "totalEthDeployed");
   const last24h = volume.length > 0 ? volume[volume.length - 1].v : null;
@@ -90,30 +93,22 @@ export function LiveHero() {
           label="Price"
           value={peaUsd === null ? "—" : fmtUsd(peaUsd)}
         />
-        <HeroStat
-          label="Market Cap"
-          value={
-            peaUsd !== null && circulating !== null
-              ? usdCompact(peaUsd * circulating)
-              : "—"
-          }
-        />
-        <HeroStat
-          label="FDV"
-          value={
-            peaUsd !== null && maxSupply !== null
-              ? usdCompact(peaUsd * maxSupply)
-              : "—"
-          }
-        />
+        <HeroStat label="Market Cap" value={usdAuto(sv.marketCapUsd)} />
+        <HeroStat label="FDV" value={usdAuto(sv.fdvUsd)} />
         <HeroStat
           label="Circulating Supply"
-          value={circulating === null ? "—" : fmtInt(circulating)}
+          value={sv.circulating != null ? fmtInt(sv.circulating) : "—"}
         />
         <HeroStat
           label="Total Supply"
+          value={sv.totalSupply != null ? fmtInt(sv.totalSupply) : "—"}
+        />
+        <HeroStat
+          label="Max Supply"
           value={maxSupply === null ? "—" : fmtInt(maxSupply)}
         />
+        <HeroStat label="Liquidity" value={usdAuto(m?.liquidityUsd)} />
+        <HeroStat label="24h Trading Volume" value={usdAuto(m?.volume24hUsd)} />
         <HeroStat
           label="24h Deployed"
           value={last24h === null ? "—" : `Ξ ${eth4(last24h)}`}
@@ -126,43 +121,7 @@ export function LiveHero() {
       {/* PEA/USD price chart (design slot preserved). No mock series: shows
           the awaiting state until the pair is indexed; the real series wiring
           (GeckoTerminal/DexScreener OHLCV) lands with the listing. */}
-      <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <PeaIcon size={18} className="text-accent" />
-            <span className="font-wordmark text-[14px] font-bold tracking-[-0.01em] text-fg">
-              PEA / USD
-            </span>
-          </div>
-          <div className="flex gap-1">
-            {([30, 90, 180] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                aria-pressed={range === r}
-                className={`tnum h-7 cursor-pointer rounded-full border px-3 text-[12px] font-semibold transition-all ${
-                  range === r
-                    ? "border-accent/40 bg-surface-active text-fg shadow-[0_0_14px_-4px_var(--color-accent)]"
-                    : "border-transparent text-fg-muted hover:text-fg"
-                }`}
-              >
-                {r === 180 ? "ALL" : `${r}D`}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-4 flex h-[260px] flex-col items-center justify-center gap-1.5">
-          <span className="tnum text-[28px] font-bold text-fg">
-            {peaUsd === null ? "—" : fmtUsd(peaUsd)}
-          </span>
-          <p className="text-[13.5px] text-fg-muted">
-            {peaUsd === null
-              ? "Awaiting market listing. The price chart goes live once the PEA pair is indexed."
-              : "Price history chart coming online with the market data feed."}
-          </p>
-        </div>
-      </div>
+      <PriceChart />
     </div>
   );
 }
@@ -211,7 +170,7 @@ export const LiveMiningCharts = memo(function LiveMiningCharts() {
           on hits (hit rounds render in white). */}
       <ChartCard
         title="Peapot Over Rounds"
-        subtitle="The pot grows 0.1 PEA every round and has 1-in-633 odds of dropping to the winning tile"
+        subtitle="The pot grows 0.1 PEA every round and has 1-in-333 odds of dropping to the winning tile"
       >
         {peapot.length > 0 ? (
           <BarChart
@@ -239,7 +198,7 @@ export const LiveMiningCharts = memo(function LiveMiningCharts() {
       </ChartCard>
       <ChartCard
         title="Harvesting APR"
-        subtitle="Yield from the harvest fee, rolling 1D / 7D / 30D windows"
+        subtitle="Harvest fees paid out to unharvested PEA, rolling 1D / 7D / 30D windows"
       >
         {hasPoints(apr1d, apr7d, apr30d) ? (
           <LineChart
@@ -470,7 +429,7 @@ export const LiveBuybacksTab = memo(function LiveBuybacksTab() {
       </div>
       <ChartCard
         title="Cumulative PEA Burned"
-        subtitle="95% of bought-back PEA is burned"
+        subtitle="95% of bought back PEA is burned"
       >
         {hasPoints(burnedCumulative) ? (
           <LineChart
@@ -615,10 +574,12 @@ export const LiveTokenTab = memo(function LiveTokenTab() {
   }));
   const holders = tableRows<HolderRowLive>(token.data, "topHolders");
   const pg = usePage(holders);
-
-  const circulating = stat(token.data, "circulatingSupply");
   const maxSupply = stat(token.data, "maxSupply");
   const totalHolders = stat(token.data, "totalHolders");
+  // Token tab keeps the backend's own circulating figure. The hero rail
+  // derives its from onchain total supply minus the lock, so if these two ever
+  // disagree post-launch that is a real signal, not a display bug.
+  const circulating = stat(token.data, "circulatingSupply");
 
   return (
     <div className="flex flex-col gap-4">

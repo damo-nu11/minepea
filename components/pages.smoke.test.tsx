@@ -245,11 +245,13 @@ describe("legal documents", () => {
       expect(text).not.toMatch(/\[DATE\]|\[TBD\]|TODO|XXX/);
       // House style: no em/en dashes in user-facing copy.
       expect(text).not.toMatch(/[—–]/);
-      // The chain stays unnamed pre-launch: each document defines "the
-      // Network" once, and must do so before the first short-form use.
-      const defined = text.indexOf('(the "Network")');
+      // The chain is named (user 2026-07-21): each document names Robinhood
+      // Chain and defines it as "the Network" once, before any short-form use.
+      const defined = text.indexOf('Robinhood Chain (the "Network")');
       expect(defined).toBeGreaterThan(-1);
       expect(text.search(/[Tt]he Network[ .,]/)).toBeGreaterThan(defined);
+      // The euphemism it replaced must not creep back in.
+      expect(text).not.toMatch(/Ethereum Layer-2/i);
     }
   });
 });

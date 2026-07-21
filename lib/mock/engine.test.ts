@@ -52,9 +52,43 @@ describe("MockEngine construction (fast-forwarded seeding)", () => {
       const winnings = BigInt(h.winningsWei);
       expect(vaulted + winnings).toBe(deployed);
       const pct = Number((vaulted * 10_000n) / deployed) / 100;
-      expect(pct).toBeGreaterThanOrEqual(9.9); // flat 10% fee, integer division shaves a hundredth
-      expect(pct).toBeLessThanOrEqual(10.0);
+      if (h.winnerCount === 0) {
+        // Nobody covered the drawn tile: the whole round vaults.
+        expect(pct).toBe(100);
+        expect(winnings).toBe(0n);
+      } else {
+        expect(pct).toBeGreaterThanOrEqual(9.9); // flat 10% fee, integer division shaves a hundredth
+        expect(pct).toBeLessThanOrEqual(10.0);
+      }
     }
+  });
+
+  it("a round whose drawn tile nobody covered vaults 100% and pays no winnings", () => {
+    // Cover a single tile, then settle repeatedly until the uniform draw
+    // lands somewhere else. That round must vault everything.
+    const rng = createRng(5);
+    const events: DeployEventWire[] = [
+      {
+        id: 1,
+        roundId: 4,
+        miner: USER,
+        tiles: [12],
+        amountWei: ethToWei(2),
+        at: 0,
+      },
+    ];
+    let sawUncovered = false;
+    for (let i = 0; i < 200 && !sawUncovered; i++) {
+      const s = settleRound(4, events, rng, 1000, null);
+      if (s.winningTile === 12) continue;
+      sawUncovered = true;
+      expect(s.winnerCount).toBe(0);
+      expect(s.winner).toBeNull();
+      expect(s.isSplit).toBe(false);
+      expect(s.winningsWei).toBe("0");
+      expect(s.vaultedWei).toBe(s.deployedWei);
+    }
+    expect(sawUncovered).toBe(true);
   });
 
   it("produces reference-scale rounds (winner counts ~130-180, deployed ~8-16 ETH)", () => {
@@ -102,7 +136,8 @@ describe("live ticking", () => {
     const snap = e.getSnapshot();
     expect(snap.round.tiles.some((t) => t.minerCount > 0)).toBe(true);
     const ids = snap.feed.map((f) => f.id);
-    for (let i = 1; i < ids.length; i++) expect(ids[i]).toBeGreaterThan(ids[i - 1]);
+    for (let i = 1; i < ids.length; i++)
+      expect(ids[i]).toBeGreaterThan(ids[i - 1]);
     unsub();
   });
 
@@ -241,10 +276,17 @@ describe("pure derivations", () => {
     expect(tiles[1].deployedWei).toBe("0");
   });
 
-  it("settleRound picks a covered winner and counts coverers", () => {
+  it("settleRound counts the coverers of the drawn tile and holds the invariant", () => {
     const rng = createRng(3);
     const events: DeployEventWire[] = [
-      { id: 1, roundId: 9, miner: USER, tiles: [7], amountWei: ethToWei(1), at: 0 },
+      {
+        id: 1,
+        roundId: 9,
+        miner: USER,
+        tiles: [7],
+        amountWei: ethToWei(1),
+        at: 0,
+      },
       {
         id: 2,
         roundId: 9,
@@ -255,11 +297,46 @@ describe("pure derivations", () => {
       },
     ];
     const s = settleRound(9, events, rng, 1000, null);
-    expect(s.winningTile).toBe(7); // only tile with weight
-    expect(s.winnerCount).toBe(2);
+    // Tile 7 is the only covered tile, so coverers are counted only when the
+    // uniform draw actually lands there. ETH never buys a better chance.
+    expect(s.winnerCount).toBe(s.winningTile === 7 ? 2 : 0);
     expect(BigInt(s.vaultedWei) + BigInt(s.winningsWei)).toBe(
       BigInt(s.deployedWei),
     );
+  });
+
+  it("the winning tile is uniform 1-in-25: ETH on a tile does not raise its odds", () => {
+    // One tile carries 1000x the ETH of another. Over many settles the draw
+    // must stay flat, and the heavy tile must not dominate.
+    const rng = createRng(11);
+    const events: DeployEventWire[] = [
+      {
+        id: 1,
+        roundId: 1,
+        miner: USER,
+        tiles: [3],
+        amountWei: ethToWei(1000),
+        at: 0,
+      },
+      {
+        id: 2,
+        roundId: 1,
+        miner: "0x2222222222222222222222222222222222222222",
+        tiles: [4],
+        amountWei: ethToWei(1),
+        at: 0,
+      },
+    ];
+    const counts = new Array(25).fill(0);
+    const N = 5000;
+    for (let i = 0; i < N; i++)
+      counts[settleRound(1, events, rng, 1000, null).winningTile]++;
+    expect(counts.every((c) => c > 0)).toBe(true); // every tile reachable
+    const expected = N / 25;
+    for (const c of counts)
+      expect(Math.abs(c - expected) / expected).toBeLessThan(0.35);
+    // The 1000x tile is not favoured over its 1x neighbour by any real margin.
+    expect(Math.abs(counts[3] - counts[4]) / expected).toBeLessThan(0.35);
   });
 });
 
@@ -269,7 +346,10 @@ describe("audit round-1 pins", () => {
 
   it("the SHIPPED seed's history contains motherlode hits (Motherlodes table non-empty on fresh load)", async () => {
     const { MOCK_SEED } = await import("@/lib/engineContext");
-    const { history } = createEngine({ seed: MOCK_SEED, now: () => Date.now() }).getSnapshot();
+    const { history } = createEngine({
+      seed: MOCK_SEED,
+      now: () => Date.now(),
+    }).getSnapshot();
     const hits = history.filter((h) => h.motherlodePea !== null);
     expect(hits.length).toBeGreaterThanOrEqual(1);
   });

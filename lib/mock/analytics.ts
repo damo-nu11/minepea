@@ -265,17 +265,17 @@ export function buildAnalytics(seed: number): AnalyticsBundle {
   // ── Mining ──
   const avgWinnersSeries = walk(rng, n, 150, 205, 0.06, 40);
   // Real mechanic (user 2026-07-18): the pot grows 0.1 PEA every round and
-  // has a 1-in-633 chance of dropping to the winning tile. Simulate a long
+  // has a 1-in-333 chance of dropping to the winning tile. Simulate a long
   // stretch of rounds and SAMPLE ~80 points so the bars are individually
   // visible (600 raw rounds merged into a solid silhouette); with these
-  // odds the pot peaks around a hundred PEA.
+  // odds the pot peaks in the tens of PEA.
   const CHART_ROUNDS = 2500;
   const SAMPLES = 80;
   const potFull: PotPoint[] = [];
-  let pot = rng.range(0, 60); // start mid-cycle
+  let pot = rng.range(0, 30); // start mid-cycle
   for (let r = 0; r < CHART_ROUNDS; r++) {
     pot += 0.1;
-    const hit = rng.chance(1 / 633);
+    const hit = rng.chance(1 / 333);
     potFull.push({ round: r + 1, pot: Math.round(pot * 10) / 10, hit });
     if (hit) pot = 0;
   }
@@ -284,13 +284,13 @@ export function buildAnalytics(seed: number): AnalyticsBundle {
 
   // ── Peapot PEA paid out per day. A payout series may never outrun what
   //    the pot takes in: 0.1 PEA/round x 1,440 rounds/day = 144 PEA/day,
-  //    arriving in ~2.3 drops of ~63 PEA (1-in-633 odds). Spiky, but that
+  //    arriving in ~4.3 drops of ~33 PEA (1-in-333 odds). Spiky, but that
   //    is the mean. Drawn from its OWN stream so this shape can change
   //    without shifting every series compiled after it. ──
   const potRng = createRng(seed ^ 0x9e3779b9);
   const dropsInADay = () => {
-    // Knuth's Poisson sampler, lambda = 1440 rounds / 633.
-    const L = Math.exp(-1440 / 633);
+    // Knuth's Poisson sampler, lambda = 1440 rounds / 333.
+    const L = Math.exp(-1440 / 333);
     let k = 0;
     let p = 1;
     do {
@@ -301,7 +301,7 @@ export function buildAnalytics(seed: number): AnalyticsBundle {
   };
   const peapotPaidDaily: TimePoint[] = Array.from({ length: n }, (_, i) => {
     let paid = 0;
-    for (let d = dropsInADay(); d > 0; d--) paid += potRng.range(20, 110);
+    for (let d = dropsInADay(); d > 0; d--) paid += potRng.range(10, 56);
     return {
       t: ANALYTICS_ANCHOR_MS - (n - 1 - i) * DAY_MS,
       v: Math.round(paid),
@@ -439,7 +439,7 @@ export function buildAnalytics(seed: number): AnalyticsBundle {
     impliedApyPct: apySeries[n - 1].v,
     avgDeployedPerRoundEth: deployedEthDaily[n - 1].v / 1440,
     avgWinnersPerRound: avgWinnersSeries[n - 1].v,
-    peapotHitRatePct: 100 / 633, // 1-in-633 design rate (0.16%)
+    peapotHitRatePct: 100 / 333, // 1-in-333 design rate (0.30%)
     avgWinnersSeries,
     peapotRounds,
     peapotPaidDaily,

@@ -42,12 +42,14 @@ import {
   TableScroller,
   TD,
   TH,
+  usdAuto,
   usdCompact,
   usePage,
   ValueWithIcon,
   WinnerCell,
 } from "@/components/explore/shared";
-import { PeaIcon } from "@/components/icons";
+import { PriceChart } from "@/components/explore/PriceChart";
+import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
 import { txUrl } from "@/lib/contracts";
@@ -252,21 +254,29 @@ function PeapotsTable({ rows }: { rows: RoundSummaryVM[] }) {
 
 function Hero() {
   const { a, livePea } = useScaledAnalytics();
-  const [range, setRange] = useState<30 | 90 | 180>(90);
-  const sliced = useMemo(
-    () => a.priceSeries.slice(-range),
-    [a.priceSeries, range],
-  );
-
+  // Market facts come from the same GeckoTerminal payload as the chart, so a
+  // number in the rail can never disagree with the line beside it.
+  const md = useMarketData().data;
+  const sv = supplyView(md?.market, md?.priceUsd);
+  const m = md?.market;
   return (
     <div className="mt-10 grid gap-6 lg:grid-cols-[320px_1fr]">
       {/* Stats rail */}
       <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg px-6 py-3">
         <HeroStat label="Price" value={livePea ? fmtUsd(livePea) : "—"} />
-        <HeroStat label="Market Cap" value={usdCompact(a.marketCapUsd)} />
-        <HeroStat label="FDV" value={usdCompact(a.fdvUsd)} />
-        <HeroStat label="Circulating Supply" value={fmtInt(a.circulatingPea)} />
-        <HeroStat label="Total Supply" value={fmtInt(a.maxSupplyPea)} />
+        <HeroStat label="Market Cap" value={usdAuto(sv.marketCapUsd)} />
+        <HeroStat label="FDV" value={usdAuto(sv.fdvUsd)} />
+        <HeroStat
+          label="Circulating Supply"
+          value={sv.circulating != null ? fmtInt(sv.circulating) : "—"}
+        />
+        <HeroStat
+          label="Total Supply"
+          value={sv.totalSupply != null ? fmtInt(sv.totalSupply) : "—"}
+        />
+        <HeroStat label="Max Supply" value={fmtInt(a.maxSupplyPea)} />
+        <HeroStat label="Liquidity" value={usdAuto(m?.liquidityUsd)} />
+        <HeroStat label="24h Trading Volume" value={usdAuto(m?.volume24hUsd)} />
         <HeroStat
           label="24h Deployed Volume"
           value={usdCompact(a.volume24hUsd)}
@@ -276,45 +286,7 @@ function Hero() {
           value={usdCompact(a.allTimeDeployedUsd)}
         />
       </div>
-      {/* Price chart */}
-      <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <PeaIcon size={18} className="text-accent" />
-            <span className="font-wordmark text-[14px] font-bold tracking-[-0.01em] text-fg">
-              PEA / USD
-            </span>
-          </div>
-          <div className="flex gap-1">
-            {([30, 90, 180] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                aria-pressed={range === r}
-                className={`tnum h-7 cursor-pointer rounded-full border px-3 text-[12px] font-semibold transition-all ${
-                  range === r
-                    ? "border-accent/40 bg-surface-active text-fg shadow-[0_0_14px_-4px_var(--color-accent)]"
-                    : "border-transparent text-fg-muted hover:text-fg"
-                }`}
-              >
-                {r === 180 ? "ALL" : `${r}D`}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-4">
-          <LineChart
-            series={[
-              { name: "PEA", color: C.accent, points: sliced, fill: true },
-            ]}
-            height={260}
-            yFmt={(v) => `$${v.toFixed(1)}`}
-            zeroFloor={false}
-            label={`PEA price, currently ${livePea ? fmtUsd(livePea) : "loading"}`}
-          />
-        </div>
-      </div>
+      <PriceChart fallback={a.priceSeries} />
     </div>
   );
 }
@@ -453,7 +425,7 @@ const BuybacksTab = memo(function BuybacksTab() {
       </div>
       <ChartCard
         title="Cumulative PEA Burned"
-        subtitle="95% of bought-back PEA is burned"
+        subtitle="95% of bought back PEA is burned"
       >
         <LineChart
           series={[
@@ -837,7 +809,7 @@ const MiningCharts = memo(function MiningCharts() {
       {/* Peapot chart: full width + tall so the bars are distinct (user). */}
       <ChartCard
         title="Peapot Over Rounds"
-        subtitle="The pot grows 0.1 PEA every round and has 1-in-633 odds of dropping to the winning tile"
+        subtitle="The pot grows 0.1 PEA every round and has 1-in-333 odds of dropping to the winning tile"
       >
         <BarChart
           labels={potLabels}
@@ -854,15 +826,15 @@ const MiningCharts = memo(function MiningCharts() {
         {[
           {
             h: "Round Mechanics",
-            p: "Rounds run on a fixed timer over a board of 25 tiles. Miners deploy ETH on any tiles, one by one or across consecutive rounds with the auto-miner. When time runs out, one winning tile is drawn.",
+            p: "Rounds run on a fixed timer over a board of 25 tiles. Miners deploy ETH on any tiles, one by one or across consecutive rounds with the AutoMiner. When time runs out, one winning tile is drawn at random by Pyth Network's VRF: every tile has the same 1-in-25 chance, however much ETH sits on it.",
           },
           {
             h: "Where the ETH goes",
-            p: "A 10% protocol fee is taken on each round's deployed ETH. All of it buys back PEA on the open market: 95% of the bought-back PEA is burned and 5% is paid to stakers. Everything else is paid out to the miners on the winning tile, in proportion to what they deployed there.",
+            p: "A 10% protocol fee is taken on each round's deployed ETH. All of it buys back PEA on the open market: 95% of the bought back PEA is burned and 5% is paid to stakers. Everything else is paid out to the miners on the winning tile, in proportion to what they deployed there. If the drawn tile has no miners on it, the round has no winners and all of its ETH goes to the vault instead.",
           },
           {
             h: "PEA rewards",
-            p: "Every round mints 1.1 PEA. One PEA goes to the winning tile, with a 50/50 chance of splitting across all miners on it or going to a single miner pro-rata. The other 0.1 PEA grows the PEAPOT, which has 1-in-633 odds of dropping each round.",
+            p: "Every round mints 1.1 PEA. One PEA goes to the winning tile: a 50/50 draw settled by the same VRF decides whether it splits across every miner on that tile pro-rata to their ETH or goes whole to one of them. The other 0.1 PEA grows the PEAPOT, which has 1-in-333 odds of dropping each round.",
           },
         ].map((m) => (
           <div
@@ -916,7 +888,7 @@ const MiningCharts = memo(function MiningCharts() {
 
       <ChartCard
         title="Harvesting APR"
-        subtitle="Yield from the harvest fee, rolling 1D / 7D / 30D windows"
+        subtitle="Harvest fees paid out to unharvested PEA, rolling 1D / 7D / 30D windows"
       >
         <LineChart
           series={[
@@ -942,7 +914,7 @@ function MiningTab() {
   );
 
   // LIVE stat cards (audit: must agree with the tables beside them). The
-  // peapot hit rate is the protocol's DESIGN odds (1-in-633), not the
+  // peapot hit rate is the protocol's DESIGN odds (1-in-333), not the
   // accelerated demo engine's rate — so it agrees with the mechanics copy.
   const { avgDeployed, avgWinners } = useMemo(() => {
     if (rows.length === 0) return { avgDeployed: null, avgWinners: null };
@@ -966,7 +938,7 @@ function MiningTab() {
         />
         <StatCard
           title="Peapot Hit Rate"
-          value="1 in 633"
+          value="1 in 333"
           caption="All-time odds per round"
           accent
         />

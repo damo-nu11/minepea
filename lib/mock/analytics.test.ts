@@ -136,12 +136,13 @@ describe("mock analytics bundle", () => {
     expect(v30).toBeLessThan(v1);
   });
 
-  it("peapot chart reflects the 0.1/round + 1-in-633 mechanic: sampled, peaks near a hundred, resets", () => {
+  it("peapot chart reflects the 0.1/round + 1-in-333 mechanic: sampled, peaks in the tens, resets", () => {
     const a = buildAnalytics(7);
     expect(a.peapotRounds.length).toBeGreaterThan(60); // ~80 sampled bars
     const peak = Math.max(...a.peapotRounds.map((p) => p.pot));
-    // 0.1/round with 1-in-633 odds ⇒ pot peaks around a hundred PEA.
-    expect(peak).toBeGreaterThan(50);
+    // 0.1/round with 1-in-333 odds ⇒ a mean cycle of ~33 PEA, and the
+    // longest of ~7 cycles peaks higher (measured 55-90 across seeds).
+    expect(peak).toBeGreaterThan(25);
     expect(peak).toBeLessThan(400);
     // At least one drop between samples (a fire happened).
     const drops = a.peapotRounds.filter(

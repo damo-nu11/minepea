@@ -60,7 +60,7 @@ export function LineChart({
     return () => ro.disconnect();
   }, []);
 
-  const { xOf, yOf, ticks, times } = useMemo(() => {
+  const { xOf, yOf, ticks, times, padLeft } = useMemo(() => {
     const times = series[0]?.points.map((p) => p.t) ?? [];
     const [tMin, tMax] = extent(times);
     const allV = series.flatMap((s) => s.points.map((p) => p.v));
@@ -69,21 +69,27 @@ export function LineChart({
     const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    const iW = Math.max(120, width - PAD.left - PAD.right);
+    // The y gutter sizes to its widest label. It used to be a fixed 46px,
+    // which silently clipped the leading characters once a formatter emitted
+    // anything longer (a sub-cent price axis renders "$0.00600", not "12").
+    // 10.5px type in the brand face measures ~6.4px per character.
+    const widest = ticks.reduce((m, v) => Math.max(m, yFmt(v).length), 0);
+    const padLeft = Math.max(PAD.left, Math.ceil(widest * 6.4) + 14);
+    const iW = Math.max(120, width - padLeft - PAD.right);
     const iH = height - PAD.top - PAD.bottom;
     const xOf = (t: number) =>
-      PAD.left + ((t - tMin) / Math.max(1, tMax - tMin)) * iW;
+      padLeft + ((t - tMin) / Math.max(1, tMax - tMin)) * iW;
     const yOf = (v: number) =>
       PAD.top + iH - ((v - vMin) / Math.max(1e-9, vMax - vMin)) * iH;
-    return { xOf, yOf, ticks, times };
-  }, [series, width, height, zeroFloor]);
+    return { xOf, yOf, ticks, times, padLeft };
+  }, [series, width, height, zeroFloor, yFmt]);
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (times.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const iW = Math.max(120, width - PAD.left - PAD.right);
-    const frac = Math.min(1, Math.max(0, (x - PAD.left) / iW));
+    const iW = Math.max(120, width - padLeft - PAD.right);
+    const frac = Math.min(1, Math.max(0, (x - padLeft) / iW));
     setHoverI(Math.round(frac * (times.length - 1)));
   };
 
@@ -137,7 +143,7 @@ export function LineChart({
         {ticks.map((v) => (
           <g key={v}>
             <line
-              x1={PAD.left}
+              x1={padLeft}
               x2={width - PAD.right}
               y1={yOf(v)}
               y2={yOf(v)}
@@ -145,7 +151,7 @@ export function LineChart({
               strokeOpacity="0.55"
             />
             <text
-              x={PAD.left - 8}
+              x={padLeft - 8}
               y={yOf(v) + 3.5}
               textAnchor="end"
               fontSize="10.5"

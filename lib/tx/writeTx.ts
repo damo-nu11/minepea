@@ -81,7 +81,7 @@ export class TxRevertedError extends Error {
   readonly hash: Hex;
   constructor(hash: Hex) {
     super(
-      "The transaction was mined but reverted on-chain, so nothing was deployed. Gas was still spent. This usually means the round closed before it landed.",
+      "The transaction was mined but reverted onchain, so nothing was deployed. Gas was still spent. This usually means the round closed before it landed.",
     );
     this.name = "TxRevertedError";
     this.hash = hash;

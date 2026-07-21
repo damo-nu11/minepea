@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useEngineStore } from "@/lib/engineContext";
-import { liveEthPrice } from "@/lib/livePrices";
+import { liveEthPrice, livePeaPrice } from "@/lib/livePrices";
 import {
   toFeedItemVM,
   toPricesVM,
@@ -82,19 +82,30 @@ export function useRoundHistory(): HookResult<RoundSummaryVM[]> {
 
 export function usePrices(): HookResult<PricesVM> {
   const snap = useSnapshot();
-  // Real ETH/USD overlays the simulated feed when available (Coinbase spot,
-  // 30s poll — see lib/livePrices.ts). PEA stays simulated: no market yet.
+  // Real prices overlay the simulated feed when available: ETH from Coinbase
+  // spot, PEA from the same GeckoTerminal pool the Explore chart is drawn
+  // from, so a quoted price can never disagree with the chart beside it.
+  // Either leg falls back to the simulation independently when its source is
+  // unavailable, so the UI never blanks.
   const liveEth = useSyncExternalStore(
     liveEthPrice.subscribe,
     liveEthPrice.getSnapshot,
     liveEthPrice.getServerSnapshot,
   );
+  const livePea = useSyncExternalStore(
+    livePeaPrice.subscribe,
+    livePeaPrice.getSnapshot,
+    livePeaPrice.getServerSnapshot,
+  );
   const data = useMemo(() => {
     if (!snap.bootstrapped) return undefined;
-    const wire =
-      liveEth !== null ? { ...snap.prices, ethUsd: liveEth } : snap.prices;
+    const wire = {
+      ...snap.prices,
+      ...(liveEth !== null ? { ethUsd: liveEth } : {}),
+      ...(livePea !== null ? { peaUsd: livePea } : {}),
+    };
     return toPricesVM(wire);
-  }, [snap.bootstrapped, snap.prices, liveEth]);
+  }, [snap.bootstrapped, snap.prices, liveEth, livePea]);
   return { data, status: hookStatus(snap) };
 }
 

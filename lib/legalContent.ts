@@ -3,8 +3,8 @@
  * components/LegalPage.tsx. Data, not markup: `label` is a bolded run-in
  * (e.g. "Volatility."), `items` renders a list beneath the block's text.
  *
- * Both documents define "the Network" at their first mention and use the
- * short form after: the chain is deliberately unnamed ahead of launch.
+ * Both documents name Robinhood Chain at their first mention, define it as
+ * "the Network", and use that short form after.
  */
 
 /** One run of prose: optional bolded run-in label, body text, optional list. */
@@ -35,7 +35,7 @@ export interface LegalDoc {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "19 July 2026";
+export const LEGAL_UPDATED = "21 July 2026";
 
 export const TERMS: LegalDoc = {
   title: "Terms",
@@ -43,7 +43,7 @@ export const TERMS: LegalDoc = {
   updated: LEGAL_UPDATED,
   intro: [
     {
-      text: "These Terms of Service (the \"Terms\") are a binding agreement between you and NU11 LABS LLC (\"NU11 LABS\", \"we\", \"us\" or \"our\"). They govern your access to and use of the PEA website and interface (the \"Site\" or the \"Services\").",
+      text: 'These Terms of Service (the "Terms") are a binding agreement between you and NU11 LABS LLC ("NU11 LABS", "we", "us" or "our"). They govern your access to and use of the PEA website and interface (the "Site" or the "Services").',
     },
     {
       text: "By accessing the Site, connecting a wallet, or using any feature of the Services, you confirm that you have read these Terms, that you understand them, and that you agree to be bound by them. If you do not agree, do not use the Services.",
@@ -57,22 +57,22 @@ export const TERMS: LegalDoc = {
       heading: "Description of the Services",
       blocks: [
         {
-          text: "PEA is a decentralised mining protocol deployed on an Ethereum Layer-2 network (the \"Network\"). The Site is a non-custodial front-end: a graphical interface that helps you read publicly available on-chain information and prepare transactions that you sign and submit yourself.",
+          text: 'PEA is a decentralised mining protocol deployed on Robinhood Chain (the "Network"). The Site is a non-custodial front-end: a graphical interface that helps you read publicly available onchain information and prepare transactions that you sign and submit yourself.',
         },
         {
-          text: "We do not custody your funds. We do not hold, generate or have access to your private keys or seed phrase. We do not operate the protocol's on-chain logic, and we cannot pause, reverse, alter or recover any transaction once it has been submitted to the network. The protocol's smart contracts run autonomously. Removing or disabling the Site would not stop them.",
+          text: "We do not custody your funds. We do not hold, generate or have access to your private keys or seed phrase. We do not operate the protocol's onchain logic, and we cannot pause, reverse, alter or recover any transaction once it has been submitted to the Network. The protocol's smart contracts run autonomously. Removing or disabling the Site would not stop them.",
         },
         {
-          text: "The core mechanic works as follows. The interface presents a board of 25 tiles. Rounds run on a timer of approximately 60 seconds, followed by a brief settling phase. During a round, miners deploy ETH onto one or more tiles. At settlement, one tile is drawn, weighted by the amount of ETH sitting on it, so a tile carrying more ETH is more likely to be drawn. Miners who covered the winning tile share that round's ETH pot pro-rata to the amount they deployed. Miners whose ETH sat on losing tiles lose that ETH to the pot.",
+          text: "The core mechanic works as follows. The interface presents a board of 25 tiles. Rounds run on a timer of 60 seconds, followed by a brief settling phase. During a round, miners deploy ETH onto one or more tiles. At settlement, one tile is drawn at random using Pyth Network's verifiable random function (VRF). Every tile has the same 1-in-25 chance of being drawn, regardless of how much ETH sits on it, and a tile that no miner covered can be drawn. Miners who covered the winning tile share that round's ETH pot, after the protocol fee described below has been taken, pro-rata to the amount each of them deployed on that tile specifically, not to their total deploy for the round. Miners whose ETH sat on losing tiles lose that ETH: it funds the pot paid out to the winners and the protocol fee. If the drawn tile is one that no miner covered, the round has no winners and the whole of that round's deployed ETH goes to the protocol vault, where it is used to buy back PEA in the same way the protocol fee is.",
         },
         {
           text: "A flat protocol fee of 10% is taken on each round's deployed ETH. 100% of that fee is used to buy back PEA on the open market. Of the PEA bought back, 95% is burned and 5% is distributed to PEA stakers.",
         },
         {
-          text: "Each round mints 1.1 PEA. 1.0 PEA goes to the winning tile: there is a 50/50 chance that it is split across all miners on that tile or that it is awarded to a single miner, in each case pro-rata to what was deployed. The remaining 0.1 PEA grows the PEAPOT, a jackpot which has 1-in-633 odds of dropping to the winning tile in any given round.",
+          text: "Each round mints 1.1 PEA. 1.0 PEA goes to the winning tile. A 50/50 draw at settlement, decided by the same VRF that draws the winning tile, determines how it is paid: either the 1.0 PEA is split across every miner on that tile pro-rata to the ETH each of them deployed there, or the whole 1.0 PEA is awarded to a single one of those miners. The remaining 0.1 PEA grows the PEAPOT, a jackpot with 1-in-333 odds of dropping in any given round. When it drops, it is paid to the miners who covered that round's winning tile.",
         },
         {
-          text: "Holders may deposit PEA into staking to earn a share of the 5% of buybacks described above. Mining rewards accrue to your wallet as unharvested PEA and ETH; harvesting them (checkpointing and claiming through the interface) settles them on-chain into your wallet, with PEA paying out net of a 10% harvest fee. PEA has a fixed maximum supply of 3,000,000 tokens.",
+          text: "Holders may deposit PEA into staking to earn a share of the 5% of buybacks described above. Mining rewards accrue in the protocol's contracts as unharvested PEA and ETH credited to your wallet address; harvesting them (checkpointing and claiming through the interface) transfers them into your wallet, with PEA paying out net of a 10% harvest fee. PEA has a fixed maximum supply of 3,000,000 tokens.",
         },
         {
           text: "We may add, change, suspend or remove features of the Site at any time, with or without notice. Nothing in these Terms obliges us to keep the Site online, to maintain any particular feature, or to continue offering the Services at all.",
@@ -83,7 +83,7 @@ export const TERMS: LegalDoc = {
       heading: "Eligibility",
       blocks: [
         {
-          text: "You may use the Services only if you are at least 18 years old and have reached the age of majority and full legal capacity in your jurisdiction. If you are using the Services on behalf of an entity, you represent that you are authorised to bind that entity to these Terms, and \"you\" refers to both you and that entity.",
+          text: 'You may use the Services only if you are at least 18 years old and have reached the age of majority and full legal capacity in your jurisdiction. If you are using the Services on behalf of an entity, you represent that you are authorised to bind that entity to these Terms, and "you" refers to both you and that entity.',
         },
         {
           text: "You represent and warrant that you are not located in, ordinarily resident in, or organised under the laws of any jurisdiction where your use of the Services would be unlawful, and that you are not subject to any sanctions administered or enforced by any competent authority, and are not listed on any sanctions or restricted party list.",
@@ -131,7 +131,7 @@ export const TERMS: LegalDoc = {
               text: "You are solely responsible for the security of your wallet, your private keys, your seed phrase, your device and your credentials. If you lose access to your wallet, or if your keys are lost, stolen or compromised, we cannot help you recover them and we cannot restore, reissue or reverse any assets. Those assets are likely gone permanently.",
             },
             {
-              text: "You are responsible for verifying every transaction before you sign it, including the destination address, the amount and the network. Transactions on the network are irreversible. We are not responsible for losses caused by user error, mistyped or incorrect addresses, transactions sent on the wrong network, phishing sites impersonating PEA, malicious browser extensions, compromised devices, or your approval of a transaction you did not understand.",
+              text: "You are responsible for verifying every transaction before you sign it, including the destination address, the amount and the network. Transactions on the Network are irreversible. We are not responsible for losses caused by user error, mistyped or incorrect addresses, transactions sent on the wrong network, phishing sites impersonating PEA, malicious browser extensions, compromised devices, or your approval of a transaction you did not understand.",
             },
             {
               text: "Always confirm that you are on our official domain. We publish our official links through our official X account, @minepea_. Treat any other domain, contract address or link as untrusted until you have verified it against those official sources.",
@@ -204,11 +204,11 @@ export const TERMS: LegalDoc = {
         },
         {
           label: "Odds",
-          text: "One tile out of 25 is drawn each round, weighted by ETH deployed on each tile. Nothing about a past round predicts a future round. The PEAPOT has 1-in-633 odds of dropping in any given round and may not drop for a long time. Long losing streaks are statistically ordinary.",
+          text: "One tile out of 25 is drawn each round at random, using Pyth Network's verifiable random function (VRF). Every tile has the same 1-in-25 chance. Deploying more ETH on a tile increases what you are paid if that tile is drawn; it does not make the tile more likely to be drawn. Nothing about a past round predicts a future round. The PEAPOT has 1-in-333 odds of dropping in any given round and may not drop for a long time. Long losing streaks are statistically ordinary.",
         },
         {
           label: "Irreversibility",
-          text: "Transactions on the network are final. Once a transaction is confirmed, it cannot be reversed, cancelled, refunded or recovered by us, by you, or by anyone else. We cannot recover ETH deployed on a losing tile, ETH sent to a wrong address, or assets lost through a compromised wallet.",
+          text: "Transactions on the Network are final. Once a transaction is confirmed, it cannot be reversed, cancelled, refunded or recovered by us, by you, or by anyone else. We cannot recover ETH deployed on a losing tile, ETH sent to a wrong address, or assets lost through a compromised wallet.",
         },
         {
           label: "Smart contract and technical risk",
@@ -223,6 +223,10 @@ export const TERMS: LegalDoc = {
           text: "We do not promise, guarantee or project any reward, yield, return, APR, emission, buyback volume, burn rate or profit. Any figures shown in the interface, including staking metrics, are estimates based on current or historical data and are not a promise of future results. Rewards depend on protocol activity that neither we nor you control. You may receive nothing.",
         },
         {
+          label: "Supply and distribution",
+          text: "PEA is not distributed only through mining. PEA launched with an initial supply of 10,000 tokens, and a portion of the maximum supply is allocated to the team and to the treasury and is held outside the mining emission. Those holdings may be sold, transferred, staked or otherwise brought into circulation, subject to whatever lock or vesting terms apply to them, and doing so may affect the price and the liquidity of PEA. Do not assume that circulating supply grows only at the emission rate described in Section 1.",
+        },
+        {
           text: "PEA is a utility token used within the protocol. It is not offered as, and is not intended to be, an investment, a security, a share, a debt instrument, a fund interest, a derivative, or a claim on NU11 LABS or on any other entity, on any revenue, or on any asset. Holding PEA gives you no ownership, no equity, no dividend, no repayment right, no voting right over NU11 LABS, and no legal claim against us.",
         },
         {
@@ -234,10 +238,10 @@ export const TERMS: LegalDoc = {
       heading: "No Warranties",
       blocks: [
         {
-          text: "THE SERVICES, THE SITE, ALL CONTENT, ALL DATA AND ALL RELATED MATERIALS ARE PROVIDED \"AS IS\" AND \"AS AVAILABLE\", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND.",
+          text: 'THE SERVICES, THE SITE, ALL CONTENT, ALL DATA AND ALL RELATED MATERIALS ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND.',
         },
         {
-          text: "TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NU11 LABS LLC AND ITS MEMBERS, MANAGERS, OFFICERS, EMPLOYEES, CONTRACTORS, AGENTS, CONTRIBUTORS AND LICENSORS (TOGETHER, THE \"NU11 LABS PARTIES\") DISCLAIM ALL WARRANTIES, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, QUIET ENJOYMENT, ACCURACY AND NON-INFRINGEMENT, AND ANY WARRANTIES ARISING FROM COURSE OF DEALING, COURSE OF PERFORMANCE OR USAGE OF TRADE.",
+          text: 'TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NU11 LABS LLC AND ITS MEMBERS, MANAGERS, OFFICERS, EMPLOYEES, CONTRACTORS, AGENTS, CONTRIBUTORS AND LICENSORS (TOGETHER, THE "NU11 LABS PARTIES") DISCLAIM ALL WARRANTIES, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, QUIET ENJOYMENT, ACCURACY AND NON-INFRINGEMENT, AND ANY WARRANTIES ARISING FROM COURSE OF DEALING, COURSE OF PERFORMANCE OR USAGE OF TRADE.',
         },
         {
           text: "WE DO NOT WARRANT THAT THE SERVICES WILL BE UNINTERRUPTED, TIMELY, SECURE, ACCURATE, COMPLETE, CURRENT OR ERROR FREE; THAT DEFECTS WILL BE CORRECTED; THAT THE SITE OR ITS INFRASTRUCTURE IS FREE OF VIRUSES OR HARMFUL COMPONENTS; THAT ANY DATA DISPLAYED, INCLUDING BALANCES, ROUND STATE, PRICES, ODDS, HISTORY OR REWARD ESTIMATES, IS ACCURATE OR CURRENT; OR THAT ANY TRANSACTION YOU SUBMIT WILL BE INCLUDED, CONFIRMED, ORDERED OR SETTLED AS YOU EXPECT.",
@@ -261,24 +265,28 @@ export const TERMS: LegalDoc = {
         },
         {
           label: "Protocol fee",
-          text: "A flat fee of 10% is taken on each round's deployed ETH. 100% of that fee is used to buy back PEA on the open market. Of the PEA bought back, 95% is burned and 5% is distributed to PEA stakers. This fee and its allocation are set by the protocol and may change. Changes may be made without individual notice to you, and your continued use after a change constitutes your acceptance of it. The interface reflects the parameters in effect at the time you use it, and you are responsible for reviewing them before you deploy.",
+          text: "A flat fee of 10% is taken on each round's deployed ETH, except where the drawn tile has no miners on it, in which case the whole of that round's deployed ETH is taken instead. 100% of what is taken is used to buy back PEA on the open market. Of the PEA bought back, 95% is burned and 5% is distributed to PEA stakers. This fee and its allocation are set by the protocol and may change. Changes may be made without individual notice to you, and your continued use after a change constitutes your acceptance of it. The interface reflects the parameters in effect at the time you use it, and you are responsible for reviewing them before you deploy.",
+        },
+        {
+          label: "Harvest fee",
+          text: "Mined rewards accrue in the protocol's contracts as unharvested PEA and ETH credited to your wallet address. They are not in your wallet and cannot be spent or transferred until you harvest them. Harvesting transfers them to your wallet, and PEA pays out net of a flat harvest fee of 10%. That fee stays in the protocol and is paid out to miners who still hold unharvested PEA, so the yield accruing on an unharvested balance is funded by other miners harvesting theirs. The fee applies only to your unharvested balance. PEA you have already received from other miners' harvest fees is not charged again. ETH rewards are not subject to this fee. Like the protocol fee, this fee and its allocation are set by the protocol and may change.",
         },
         {
           label: "Gas and network costs",
-          text: "Every transaction you submit requires a network fee, commonly called gas, paid to the network and not to us. Gas is your responsibility. Gas costs are variable and can spike. We do not control, set, refund or reimburse gas, and gas is not refunded when a transaction fails, reverts, is dropped or is replaced.",
+          text: "Every transaction you submit requires a network fee, commonly called gas, paid to the Network and not to us. Gas is your responsibility. Gas costs are variable and can spike. We do not control, set, refund or reimburse gas, and gas is not refunded when a transaction fails, reverts, is dropped or is replaced.",
         },
         {
           label: "Finality",
-          text: "ALL TRANSACTIONS ARE FINAL AND NON-REFUNDABLE. Once you sign and submit a transaction, it cannot be reversed, cancelled, amended or refunded by us. We do not offer refunds, credits, chargebacks, make-goods or compensation for any reason, including a lost round, a missed round, a mistimed deployment, a failed transaction, an interface error, a display error, downtime, network congestion, or a change in the price of any asset.",
+          text: "ALL TRANSACTIONS ARE FINAL AND NON-REFUNDABLE. Once you sign and submit a transaction, it cannot be reversed, cancelled, amended or refunded by us. We do not offer refunds, credits, chargebacks, make-goods or compensation, including for a lost round, a missed round, a mistimed deployment, a failed transaction, an interface error, a display error, downtime, network congestion, or a change in the price of any asset. This does not affect the protocol's own behaviour: if you stop a prepaid multi-round deployment, the smart contract returns the unspent portion of your deposit automatically. That return is performed onchain by the contract, not by us. We do not control it, we cannot trigger, adjust or reproduce it, and we do not guarantee that any particular amount will be returned.",
         },
         {
-          text: "Settlement is performed by the protocol on-chain. Round outcomes, pot distribution, emissions, PEAPOT drops and staking rewards are determined by the smart contracts, not by us. We cannot influence, override, replay, re-run or correct an outcome. Where the interface and the chain disagree, the chain governs.",
+          text: "Settlement is performed by the protocol onchain. Round outcomes, pot distribution, emissions, PEAPOT drops and staking rewards are determined by the smart contracts, not by us. We cannot influence, override, replay, re-run or correct an outcome. Where the interface and the chain disagree, the chain governs.",
         },
         {
           text: "PEA is a utility token used within the protocol. It has no guaranteed value, no guaranteed market and no guaranteed liquidity, and its supply is capped at a fixed maximum of 3,000,000 tokens. We do not promise to support, list, buy, redeem or maintain a market for PEA, and we do not promise that PEA will retain any value.",
         },
         {
-          text: "You are responsible for ensuring you have sufficient ETH for both the amount you intend to deploy and the gas required. We are not liable for a transaction that fails for insufficient funds, slippage, an expired approval, or a wallet configuration issue.",
+          text: "You are responsible for ensuring you have sufficient ETH for the amount you intend to deploy, for the gas required, and for any other protocol fee that applies to the action you are taking, including the fee charged for prepaid multi-round deployment. The fees described in this section are not an exhaustive list of every charge the protocol may apply. Check the amounts shown in the interface before you confirm any transaction. We are not liable for a transaction that fails for insufficient funds, slippage, an expired approval, or a wallet configuration issue.",
         },
       ],
     },
@@ -297,8 +305,16 @@ export const TERMS: LegalDoc = {
           text: "The Site is hosted and served using infrastructure provided by Vercel. Vercel processes technical data such as connection information as part of delivering the Site. Vercel's own terms and policies apply to its services.",
         },
         {
+          label: "Database provider",
+          text: "Any optional profile you save, and any Discord account you link, are stored with a third-party database provider. Its own terms and policies apply to its service, and we are not liable for its outages, defects or security incidents.",
+        },
+        {
+          label: "Discord",
+          text: "If you link a Discord account, community roles are granted and removed through Discord's own systems. Your use of Discord is governed by Discord's terms and privacy policy.",
+        },
+        {
           label: "Public RPC endpoints",
-          text: "We read on-chain data, including your token balances, through a public RPC endpoint. RPC providers may return delayed, incomplete or incorrect data, may rate limit requests, or may become unavailable. Displayed balances and round state may lag the chain.",
+          text: "We read onchain data, including your token balances, through a public RPC endpoint. RPC providers may return delayed, incomplete or incorrect data, may rate limit requests, or may become unavailable. Displayed balances and round state may lag the chain.",
         },
         {
           label: "Public price sources",
@@ -319,7 +335,7 @@ export const TERMS: LegalDoc = {
           text: "TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL THE NU11 LABS PARTIES BE LIABLE TO YOU FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, BUSINESS, GOODWILL, OPPORTUNITY, DATA, TOKENS, DIGITAL ASSETS, OR ANTICIPATED SAVINGS, OR FOR ANY LOSS ARISING FROM THE CHANGE IN VALUE OF ANY DIGITAL ASSET, HOWEVER CAUSED AND UNDER ANY THEORY OF LIABILITY, INCLUDING CONTRACT, TORT, NEGLIGENCE, STRICT LIABILITY, WARRANTY OR OTHERWISE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND EVEN IF A LIMITED REMEDY FAILS OF ITS ESSENTIAL PURPOSE.",
         },
         {
-          text: "WITHOUT LIMITING THE FOREGOING, THE NU11 LABS PARTIES WILL HAVE NO LIABILITY WHATSOEVER FOR: ETH LOST ON A LOSING TILE OR OTHERWISE LOST, FORFEITED OR NOT WON IN ANY ROUND; ANY ROUND OUTCOME, SETTLEMENT, EMISSION, PEAPOT RESULT OR STAKING REWARD; ANY BUG, DEFECT, EXPLOIT, HACK OR ECONOMIC FLAW IN THE PEA SMART CONTRACTS; ANY FAILURE, CONGESTION, REORGANISATION, FORK, SEQUENCER FAULT OR DOWNTIME OF THE ETHEREUM LAYER-2 NETWORK ON WHICH THE PEA PROTOCOL IS DEPLOYED; ANY UNAVAILABILITY, ERROR, INACCURACY, LATENCY OR STALE DISPLAY IN THE SITE; ANY LOSS OF, THEFT OF, OR UNAUTHORISED ACCESS TO YOUR WALLET, KEYS, SEED PHRASE OR DEVICE; ANY ACT, OMISSION, OUTAGE OR SECURITY INCIDENT OF PRIVY, VERCEL, ANY RPC PROVIDER, ANY PRICE SOURCE OR ANY OTHER THIRD PARTY; ANY PHISHING SITE, FAKE TOKEN, IMPERSONATION OR FRAUD BY A THIRD PARTY; OR ANY REGULATORY, LEGAL OR TAX CONSEQUENCE OF YOUR ACTIVITY.",
+          text: "WITHOUT LIMITING THE FOREGOING, THE NU11 LABS PARTIES WILL HAVE NO LIABILITY WHATSOEVER FOR: ETH LOST ON A LOSING TILE OR OTHERWISE LOST, FORFEITED OR NOT WON IN ANY ROUND; ANY ROUND OUTCOME, SETTLEMENT, EMISSION, PEAPOT RESULT OR STAKING REWARD; ANY BUG, DEFECT, EXPLOIT, HACK OR ECONOMIC FLAW IN THE PEA SMART CONTRACTS; ANY FAILURE, CONGESTION, REORGANISATION, FORK, SEQUENCER FAULT OR DOWNTIME OF ROBINHOOD CHAIN, THE NETWORK ON WHICH THE PEA PROTOCOL IS DEPLOYED; ANY UNAVAILABILITY, ERROR, INACCURACY, LATENCY OR STALE DISPLAY IN THE SITE; ANY LOSS OF, THEFT OF, OR UNAUTHORISED ACCESS TO YOUR WALLET, KEYS, SEED PHRASE OR DEVICE; ANY ACT, OMISSION, OUTAGE OR SECURITY INCIDENT OF PRIVY, VERCEL, ANY RPC PROVIDER, ANY PRICE SOURCE OR ANY OTHER THIRD PARTY; ANY PHISHING SITE, FAKE TOKEN, IMPERSONATION OR FRAUD BY A THIRD PARTY; OR ANY REGULATORY, LEGAL OR TAX CONSEQUENCE OF YOUR ACTIVITY.",
         },
         {
           text: "TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE TOTAL AGGREGATE LIABILITY OF THE NU11 LABS PARTIES TO YOU FOR ALL CLAIMS ARISING OUT OF OR RELATING TO THESE TERMS OR THE SERVICES, WHETHER IN CONTRACT, TORT OR OTHERWISE, WILL NOT EXCEED ONE HUNDRED UNITED STATES DOLLARS (USD 100) IN THE AGGREGATE. THIS CAP APPLIES ACROSS ALL CLAIMS COMBINED AND IS NOT PER CLAIM, PER ROUND OR PER INCIDENT.",
@@ -337,9 +353,16 @@ export const TERMS: LegalDoc = {
       blocks: [
         {
           text: "You agree to indemnify, defend and hold harmless the NU11 LABS Parties from and against any and all claims, demands, actions, proceedings, investigations, damages, losses, liabilities, judgments, settlements, fines, penalties, costs and expenses, including reasonable legal fees and expenses, arising out of or relating to:",
-        },
-        {
-          text: "your access to or use of the Services; your deployment of ETH, your staking or other protocol activity; your violation of these Terms; your violation of any law, regulation or sanctions requirement; your violation of the rights of any third party, including intellectual property, privacy and publicity rights; any content you submit, including a username or avatar; any tax obligation of yours; and any misuse of your wallet, keys or device, whether or not authorised by you.",
+          items: [
+            "your access to or use of the Services;",
+            "your deployment of ETH, your staking or other protocol activity;",
+            "your violation of these Terms;",
+            "your violation of any law, regulation or sanctions requirement;",
+            "your violation of the rights of any third party, including intellectual property, privacy and publicity rights;",
+            "any content you submit, including a username or avatar;",
+            "any tax obligation of yours; and",
+            "any misuse of your wallet, keys or device, whether or not authorised by you.",
+          ],
         },
         {
           text: "We reserve the right, at your expense, to assume the exclusive defence and control of any matter otherwise subject to indemnification by you, in which case you agree to cooperate fully with our defence. You will not settle any matter that imposes any obligation or admission on any NU11 LABS Party without our prior written consent.",
@@ -418,7 +441,7 @@ export const TERMS: LegalDoc = {
       heading: "Changes to These Terms",
       blocks: [
         {
-          text: "We may modify these Terms at any time. When we do, we will post the updated Terms on the Site and update the \"Last updated\" date at the top of the document. Where we consider a change material, we will make reasonable efforts to give additional notice, such as a post from our official X account or a notice in the interface.",
+          text: 'We may modify these Terms at any time. When we do, we will post the updated Terms on the Site and update the "Last updated" date at the top of the document. Where we consider a change material, we will make reasonable efforts to give additional notice, such as a post from our official X account or a notice in the interface.',
         },
         {
           text: "Changes take effect when posted, unless we state a later effective date. Your continued access to or use of the Services after the changes take effect constitutes your acceptance of the updated Terms. If you do not agree to a change, your sole remedy is to stop using the Services.",
@@ -441,7 +464,7 @@ export const TERMS: LegalDoc = {
           text: "In short, the Services are designed to minimise the personal information we handle. We do not require an account with us, and we do not collect a name, an address or a payment method. On-chain activity is inherently public: your wallet address, your deployments and your rewards are recorded on a public network, are visible to anyone, and cannot be deleted or made private by us or by you. Any profile information you add, such as a username or avatar, is public by design.",
         },
         {
-          text: "Third parties involved in delivering the Services, including Privy, Vercel, RPC providers and price sources, process data under their own policies. Where the Privacy Policy and these Terms conflict on a privacy matter, the Privacy Policy governs.",
+          text: "Third parties involved in delivering the Services, including Privy, Vercel, our database provider, Discord and the RPC and price sources we read from, process data under their own policies. Where the Privacy Policy and these Terms conflict on a privacy matter, the Privacy Policy governs.",
         },
       ],
     },
@@ -473,7 +496,7 @@ export const TERMS: LegalDoc = {
         },
         {
           label: "Headings and interpretation",
-          text: "Headings are for convenience only and do not affect interpretation. \"Including\" means \"including without limitation\". These Terms are drafted in English. If we provide a translation, the English version governs in the event of any conflict.",
+          text: 'Headings are for convenience only and do not affect interpretation. "Including" means "including without limitation". These Terms are drafted in English. If we provide a translation, the English version governs in the event of any conflict.',
         },
       ],
     },
@@ -500,7 +523,7 @@ export const PRIVACY: LegalDoc = {
   updated: LEGAL_UPDATED,
   intro: [
     {
-      text: "This Privacy Policy explains how NU11 LABS LLC (\"NU11 LABS\", \"we\", \"us\", \"our\") handles information in connection with the PEA website and frontend interface (the \"Site\"). The Site is a non-custodial interface to the PEA mining protocol, a decentralised protocol deployed on an Ethereum Layer-2 network (the \"Network\"). We do not custody user funds, we do not hold private keys, and we do not control the protocol's on-chain operation.",
+      text: 'This Privacy Policy explains how NU11 LABS LLC ("NU11 LABS", "we", "us", "our") handles information in connection with the PEA website and frontend interface (the "Site"). The Site is a non-custodial interface to the PEA mining protocol, a decentralised protocol deployed on Robinhood Chain (the "Network"). We do not custody user funds, we do not hold private keys, and we do not control the protocol\'s onchain operation.',
     },
     {
       text: "Because the Site is an interface rather than an account-based service, we collect very little about you. There is no sign-up, no password, and no user account with us. You interact with PEA by connecting a self-custodial wallet, and most of what happens when you mine or stake is recorded on a public blockchain that we neither own nor control. This policy describes the limited information that does pass through the Site, what we do with it, and the choices you have.",
@@ -525,10 +548,10 @@ export const PRIVACY: LegalDoc = {
               text: "When you connect a wallet and use PEA, your activity is recorded on the Network. That network is public. Anyone can read it, including us.",
             },
             {
-              text: "The on-chain information associated with your wallet address includes: the public address itself, the amount of ETH you deploy onto tiles, the tiles you cover in each round, the outcome of each round for you, PEA you win from the winning tile, PEA you receive from a PEAPOT drop, PEA you stake or unstake, rewards you harvest (checkpoint and claim), token balances, transaction hashes, and timestamps.",
+              text: "The onchain information associated with your wallet address includes: the public address itself, the amount of ETH you deploy onto tiles, the tiles you cover in each round, the outcome of each round for you, PEA you win from the winning tile, PEA you receive from a PEAPOT drop, PEA you stake or unstake, rewards you harvest (checkpoint and claim), token balances, transaction hashes, and timestamps. If you prepay a multi-round deployment, it also includes the deposit you send, the configuration you set, meaning the tiles you selected and the number of rounds, the fee taken from that deposit in each round, each deploy submitted on your behalf, and any refund paid to you if you stop it early. A stored multi-round configuration is public before the rounds it covers are played.",
             },
             {
-              text: "We read this data from the network in order to display it back to you and to power the Site's live views and analytics. We do not create it and we cannot alter or delete it. A wallet address is pseudonymous, not anonymous: it does not contain your name, but all activity tied to it is permanently visible, and it may become linkable to you by third parties through means outside our control, for example through an exchange, a public post, or on-chain analysis.",
+              text: "We read this data from the Network and serve it to the interface through our own backend, which keeps an indexed copy of round, deployment, reward, staking and automated deployment data so that the Site can display it quickly. We do not create the underlying records and we cannot alter or delete them on the Network. We can delete our indexed copy, but that changes nothing onchain, where the original stays public and permanent. A wallet address is pseudonymous, not anonymous: it does not contain your name, but all activity tied to it is permanently visible, and it may become linkable to you by third parties through means outside our control, for example through an exchange, a public post, or onchain analysis.",
             },
           ],
         },
@@ -539,10 +562,10 @@ export const PRIVACY: LegalDoc = {
               text: "The Site lets you optionally set a display username and an avatar image for your wallet. This is entirely optional. PEA works without it. When you save a profile, we store the username and avatar with our database provider so that other miners can see them next to your wallet's activity, and we keep a local copy in your browser.",
             },
             {
-              text: "You may also optionally link a Discord account to your wallet. The linking is handled by Privy, and if you complete it we receive your Discord username and account id. We store that link with our database provider and show the username in your profile drawer, and we read your wallet's on-chain PEA holdings to assign holder roles in our community server, re-checked on a schedule. Linking is entirely optional, you can decline it, and PEA works without it. Unlinking from the profile panel removes the stored link and the roles. Your Discord password is never shared with us.",
+              text: "You may also optionally link a Discord account to your wallet. The linking is handled by Privy, and if you complete it we receive your Discord username and account id. We store that link with our database provider and show the username in your profile drawer. Your wallet address and the linked Discord username are publicly readable there, so treat the link as public. Your Discord account id is stored but is not publicly readable. We also read your wallet's onchain PEA holdings to assign holder roles in our community server, re-checked on a schedule. Linking is entirely optional, you can decline it, and PEA works without it. Unlinking from the profile panel removes the stored link and the roles. Your Discord password is never shared with us.",
             },
             {
-              text: "Anything you put in a profile should be treated as public. Do not use your real name, your likeness, or any image or handle you are not comfortable having associated with your wallet address and its on-chain history. We do not verify, and do not want, any link between a profile and your real-world identity.",
+              text: "Anything you put in a profile should be treated as public. Do not use your real name, your likeness, or any image or handle you are not comfortable having associated with your wallet address and its onchain history. We do not verify, and do not want, any link between a profile and your real-world identity.",
             },
           ],
         },
@@ -553,7 +576,7 @@ export const PRIVACY: LegalDoc = {
               text: "Like nearly all websites, the Site and its hosting infrastructure automatically receive certain technical information when you load a page. This includes your IP address, your browser type and version, your device type, your operating system, your approximate region as inferred from your IP address, the referring page or link that sent you to us, the pages you view, and the dates and times of those requests.",
             },
             {
-              text: "We use this information in aggregate to keep the Site online, to understand load and performance, and to detect abuse. We do not use it to build an advertising profile of you, and we do not attempt to combine it with your wallet address to identify you personally.",
+              text: "We use this information in aggregate to keep the Site online, to understand load and performance, and to detect abuse. We do not use it to build an advertising profile of you and we do not sell it. Our own backend does receive your wallet address together with your IP address whenever the interface loads your round state, your rewards, your staking position or your automated deployments, because those requests are addressed by wallet. We use that pairing to serve the response and it appears in our server logs. We do not use it to identify you personally and we do not combine it with data from outside sources.",
             },
           ],
         },
@@ -597,6 +620,8 @@ export const PRIVACY: LegalDoc = {
             "To let you connect a self-custodial wallet and to read your public balances so the interface can show accurate numbers.",
             "To maintain, secure, and improve the Site, including diagnosing errors, monitoring performance, and understanding which features are used.",
             "To detect, investigate, and prevent abuse, fraud, spam, denial-of-service activity, and other conduct that threatens the Site or its users.",
+            "To display an optional username and avatar you have saved next to your wallet's activity, so that other miners can recognise you.",
+            "To grant and maintain community roles in our Discord server based on your wallet's PEA holdings, if you choose to link a Discord account.",
             "To respond to you when you contact us through our official channels.",
             "To comply with applicable law and to respond to valid legal process.",
           ],
@@ -613,7 +638,7 @@ export const PRIVACY: LegalDoc = {
           text: "It is worth being explicit about where the line sits, because it determines what we could disclose even if we wanted to. When you deploy ETH onto a tile, that transaction goes from your wallet to the protocol's smart contracts on the Network. It does not pass through us and we cannot stop, reverse, or reveal it beyond what the public chain already reveals to everyone.",
         },
         {
-          text: "Round settlement, the drawing of the winning tile weighted by the ETH sitting on it, the pro-rata distribution of the round's ETH pot to miners who covered that tile, the flat 10% protocol fee, the buyback of PEA with 100% of that fee, the burning of 95% of the bought-back PEA and the distribution of the remaining 5% to stakers, the minting of 1.1 PEA per round, and the 1-in-633 chance of the PEAPOT dropping to the winning tile, all happen on-chain according to the protocol's code. We are describing that process here only to be clear that we do not sit in the middle of it and hold data about it that the chain does not already hold.",
+          text: "Round settlement, the random drawing of the winning tile, the flat 10% protocol fee taken from the round's deployed ETH, the pro-rata distribution of the remaining pot to the miners who covered the winning tile, the buyback of PEA with 100% of that fee, the burning of 95% of the bought back PEA and the distribution of the remaining 5% to stakers, the minting of 1.1 PEA per round, and the 1-in-333 chance of the PEAPOT dropping to the miners on the winning tile, all happen onchain according to the protocol's code. We are describing that process here only to be clear that we do not sit in the middle of it and hold data about it that the chain does not already hold.",
         },
       ],
     },
@@ -629,7 +654,7 @@ export const PRIVACY: LegalDoc = {
           heading: "Public Blockchain Data",
           blocks: [
             {
-              text: "Your on-chain activity is public by design. Every transaction you make with the protocol is broadcast to the Network and is readable by anyone, including block explorers, indexers, analytics firms, and other users. We do not publish this data, we simply read it. Once it is on-chain, we cannot make it private, restrict who sees it, or remove it.",
+              text: "Your onchain activity is public by design. Every transaction you make with the protocol is broadcast to the Network and is readable by anyone, including block explorers, indexers, analytics firms, and other users. We do not publish this data, we simply read it. Once it is onchain, we cannot make it private, restrict who sees it, or remove it.",
             },
           ],
         },
@@ -643,10 +668,13 @@ export const PRIVACY: LegalDoc = {
               text: "Vercel provides hosting and content delivery for the Site. Vercel processes technical request data, including IP addresses and request logs, in order to serve pages and protect the Site from abuse. Vercel's handling of that data is governed by Vercel's own privacy policy.",
             },
             {
-              text: "We read public market and price data from public sources, and we read on-chain balances through a public RPC endpoint. Requests to those endpoints originate from your browser or from our infrastructure and may expose your IP address, and, in the case of balance reads, your wallet address, to the operator of the endpoint. We do not control those operators.",
+              text: "We read public market and price data from public sources, and we read onchain balances through a public RPC endpoint. Requests to those endpoints originate from your browser or from our infrastructure and may expose your IP address, and, in the case of balance reads, your wallet address, to the operator of the endpoint. We do not control those operators.",
             },
             {
-              text: "Supabase provides the database where optional profile information (username and avatar) is stored if you choose to save a profile. Supabase processes that data on our behalf; its handling is governed by Supabase's own terms and privacy policy.",
+              text: "Supabase provides the database where optional information is stored if you choose to save it: your display username and avatar image, and, if you link Discord, your Discord account id and username, each stored against your wallet address. Supabase processes that data on our behalf; its handling is governed by Supabase's own terms and privacy policy.",
+            },
+            {
+              text: "Discord receives information if you choose to link a Discord account. We send your Discord account id to Discord in order to grant or remove community roles based on your wallet's PEA holdings, when you link and on a recurring schedule while the link exists. Those roles are visible to other members of the community server, so they indicate a holdings bracket for the wallet linked to your Discord account. Discord's handling of your data is governed by Discord's own privacy policy.",
             },
             {
               text: "We engage service providers to perform functions on our behalf and we ask them to handle information only for those functions.",
@@ -660,7 +688,7 @@ export const PRIVACY: LegalDoc = {
               text: "We may disclose information where we believe in good faith that doing so is required by applicable law, regulation, subpoena, court order, or other valid legal process, or where disclosure is necessary to protect our rights, property, or safety, or the rights, property, or safety of our users or the public, or to investigate suspected fraud or a security incident.",
             },
             {
-              text: "We hold very little that would be responsive to such a request. We do not hold names, emails collected by us, phone numbers, addresses, or keys.",
+              text: "We hold very little that would be responsive to such a request. We do not hold names, emails collected by us, phone numbers, addresses, or keys. What we could produce is limited to what is described elsewhere in this policy: any display username and avatar image you chose to save, your Discord account id and username if you linked Discord, our indexed copy of that wallet's public onchain activity, and server logs that pair a wallet address with request data such as an IP address.",
             },
           ],
         },
@@ -681,7 +709,7 @@ export const PRIVACY: LegalDoc = {
           text: "To be direct about the boundaries:",
           items: [
             "We do not collect your real name.",
-            "We do not collect an email address for our own use. If you choose Privy's email-based embedded wallet, you provide that email to Privy, not to us.",
+            "We do not store an email address or use one for our own purposes. If you choose Privy's email-based embedded wallet, you provide that email to Privy. When our server checks that a wallet belongs to you, Privy returns your account record to us, which can include that email address. We read only the wallet and Discord entries from it, and we do not record, use or share the rest.",
             "We do not collect phone numbers.",
             "We do not collect postal or residential addresses.",
             "We do not collect government identification documents, and the Site does not run an identity verification process.",
@@ -700,10 +728,10 @@ export const PRIVACY: LegalDoc = {
       heading: "Data Security",
       blocks: [
         {
-          text: "We take reasonable technical and organisational measures appropriate to the small amount of information we handle. The Site is served over HTTPS. We limit internal access to the systems we operate. We rely on established providers, namely Privy for wallet connection and Vercel for hosting, and on their security practices for the parts of the stack they run.",
+          text: "We take reasonable technical and organisational measures appropriate to the small amount of information we handle. The Site is served over HTTPS. We limit internal access to the systems we operate. We rely on established providers, including Privy for wallet connection, Vercel for hosting, and Supabase for the database that holds optional profile and Discord-link information, and on their security practices for the parts of the stack they run. We also operate our own backend, which serves round and per-wallet data to the interface, and we are responsible for its security.",
         },
         {
-          text: "The most important security fact about PEA is structural: because we are non-custodial and never hold keys or funds, there is no honeypot of user assets or identity documents to breach on our side. Your assets sit in your wallet and on-chain, under your control.",
+          text: "The most important security fact about PEA is structural: because we are non-custodial and never hold keys or funds, there is no honeypot of user assets or identity documents to breach on our side. Your assets sit in your wallet and onchain, under your control.",
         },
         {
           text: "That control cuts both ways. You are responsible for the security of your own wallet, device, and recovery material. If you lose your seed phrase or it is stolen, we cannot recover your wallet, reverse a transaction, or restore your funds.",
@@ -717,10 +745,13 @@ export const PRIVACY: LegalDoc = {
       heading: "Data Retention",
       blocks: [
         {
-          text: "Blockchain data is permanent and immutable. Transactions recorded on the Network persist for as long as that network exists, and they are outside our control. We cannot edit, redact, or delete them, and neither can anyone else. Please treat every on-chain action as a permanent public record.",
+          text: "Blockchain data is permanent and immutable. Transactions recorded on the Network persist for as long as that network exists, and they are outside our control. We cannot edit, redact, or delete them, and neither can anyone else. Please treat every onchain action as a permanent public record.",
         },
         {
           text: "Local storage and cookies remain in your browser until you clear them. You control this entirely: clearing your browser storage removes your locally stored preferences and any locally stored profile information, and you can do this at any time without asking us.",
+        },
+        {
+          text: "Optional profile information you save, and a Discord link if you create one, stay in our database until you remove them. Removing both your username and your avatar from the profile panel deletes your profile record. Disconnecting Discord clears the stored Discord account id and username and revokes the roles that went with them, but the row holding that link, which is keyed to your wallet address, is retained rather than deleted. If you want that row removed as well, contact us through our official X account @minepea_. We do not otherwise expire this data.",
         },
         {
           text: "Technical and log data held by our hosting provider is retained for a limited period consistent with operating and securing the Site, and is then deleted or aggregated in line with that provider's practices.",
@@ -750,7 +781,7 @@ export const PRIVACY: LegalDoc = {
         {
           text: "You have practical control over almost everything we touch:",
           items: [
-            "Disconnect your wallet. You can disconnect at any time from the Site. Disconnecting stops the Site from reading your balances and ends the session on our side.",
+            "Disconnect your wallet. You can disconnect at any time from the Site. Disconnecting stops the Site from reading your balances. It does not remove anything you saved: a profile and a Discord link stay until you remove them from the profile panel, and while a Discord link exists we continue to re-check that wallet's PEA holdings on a schedule so that community roles stay current.",
             "Clear your local storage. Clearing site data in your browser removes your stored preferences and any locally stored profile information.",
             "Manage cookies. You can block or delete cookies through your browser settings. Blocking strictly necessary cookies may break parts of the Site.",
             "Edit or clear your profile. You can change or remove your optional username and avatar at any time from the profile panel; removing them deletes the stored copy from our database. Clearing your browser's site data removes the local copy as well.",
@@ -761,7 +792,7 @@ export const PRIVACY: LegalDoc = {
           text: "WE CANNOT ERASE, ALTER, OR ANONYMISE ON-CHAIN RECORDS. Requests to delete, correct, or restrict blockchain data are technically impossible for us to fulfil, because that data lives on a public, immutable, decentralised network that we do not own or operate. This is a property of the technology, not a policy choice.",
         },
         {
-          text: "Depending on where you live, you may have rights under local law to access, correct, delete, or restrict processing of personal information, to object to processing, to data portability, or to withdraw consent. To the extent those rights apply to information we actually hold, you may contact us through our official X account @minepea_ and we will respond as required by applicable law. In practice, we hold very little: we do not hold your identity, and we cannot connect a wallet address to a real person.",
+          text: "Depending on where you live, you may have rights under local law to access, correct, delete, or restrict processing of personal information, to object to processing, to data portability, or to withdraw consent. To the extent those rights apply to information we actually hold, you may contact us through our official X account @minepea_ and we will respond as required by applicable law. In practice, we hold very little of the kind of information that identifies a person. We do not hold your name or any identity document. What we do hold is tied to a wallet address rather than to you: any username and avatar image you saved, your Discord account id and username if you linked Discord, our indexed copy of that wallet's public onchain activity, and server logs pairing the wallet address with request data such as an IP address. You can remove a profile and a Discord link at any time from the profile panel.",
         },
         {
           text: "You may also have the right to lodge a complaint with your local data protection authority.",
@@ -775,7 +806,7 @@ export const PRIVACY: LegalDoc = {
           text: "The Site is not intended for and is not directed to anyone under 18 years of age. You must be at least 18 to use the Site or to interact with the PEA protocol through it.",
         },
         {
-          text: "We do not knowingly collect information from anyone under 18. If we learn that we have collected information from someone under 18, we will delete what we hold, subject to the limits described in Data Retention: on-chain records cannot be deleted by us or by anyone.",
+          text: "We do not knowingly collect information from anyone under 18. If we learn that we have collected information from someone under 18, we will delete what we hold, subject to the limits described in Data Retention: onchain records cannot be deleted by us or by anyone.",
         },
         {
           text: "If you are a parent or guardian and believe a minor has used the Site, please contact us through our official X account @minepea_.",
@@ -814,7 +845,7 @@ export const PRIVACY: LegalDoc = {
           text: "We may update this Privacy Policy from time to time to reflect changes to the Site, to our providers, or to applicable law.",
         },
         {
-          text: "When we do, we will revise the \"Last updated\" date at the top of this page and post the updated policy here. If a change is material, we will make reasonable efforts to flag it through our official X account or our official community channels.",
+          text: 'When we do, we will revise the "Last updated" date at the top of this page and post the updated policy here. If a change is material, we will make reasonable efforts to flag it through our official X account or our official community channels.',
         },
         {
           text: "Your continued use of the Site after an updated policy takes effect means you accept the updated policy. Please check this page periodically.",
@@ -828,7 +859,7 @@ export const PRIVACY: LegalDoc = {
           text: "If you have questions about this Privacy Policy, or about how we handle information, you can reach us through our official X account @minepea_. Our official community channels are the other place we respond publicly.",
         },
         {
-          text: "Please be careful about impersonation. We will only ever communicate through our official channels, and we will NEVER ask you for a private key, a seed phrase, a recovery phrase, or a wallet password, and we will never ask you to send funds to \"verify\", \"sync\", \"unlock\", or \"recover\" a wallet. Treat any such request as fraud, whatever it appears to come from.",
+          text: 'Please be careful about impersonation. We will only ever communicate through our official channels, and we will NEVER ask you for a private key, a seed phrase, a recovery phrase, or a wallet password, and we will never ask you to send funds to "verify", "sync", "unlock", or "recover" a wallet. Treat any such request as fraud, whatever it appears to come from.',
         },
         {
           text: "NU11 LABS LLC",
@@ -837,4 +868,3 @@ export const PRIVACY: LegalDoc = {
     },
   ],
 };
-

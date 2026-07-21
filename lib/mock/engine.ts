@@ -17,7 +17,8 @@
  * - Snapshot sub-objects keep referential identity unless their domain
  *   changed, so hooks can select slices without a with-selector shim.
  * - Settlement invariant: deployedWei = vaultedWei + winningsWei,
- *   vaulted = 10% of deployed (flat protocol fee).
+ *   vaulted = 10% of deployed (flat protocol fee), or 100% of deployed when
+ *   the drawn tile had no coverers.
  */
 
 import { SERVER_SNAPSHOT } from "@/lib/gameSnapshot";
@@ -129,8 +130,9 @@ export function deriveTiles(events: DeployEventWire[]): TileWire[] {
 }
 
 /**
- * Settle a round from its event log. Winner = a deploy-weighted random tile;
- * winners = miners who covered that tile; vaulted = 10% of deployed and
+ * Settle a round from its event log. Winner = a uniformly random tile (1-in-25,
+ * NOT deploy-weighted); winners = miners who covered that tile; vaulted = 10%
+ * of deployed, or all of it when nobody covered the drawn tile, and
  * deployed = vaulted + winnings EXACTLY (invariant).
  */
 export function settleRound(
@@ -144,18 +146,13 @@ export function settleRound(
   const totals = tiles.map((t) => BigInt(t.deployedWei));
   const deployedWei = sum(totals);
 
-  // Deploy-weighted winning tile (uniform when the round is empty).
-  let winningTile: TileId = rng.int(25);
-  if (deployedWei > 0n) {
-    let target = BigInt(Math.floor(rng.next() * Number(deployedWei)));
-    for (let i = 0; i < 25; i++) {
-      if (target < totals[i]) {
-        winningTile = i;
-        break;
-      }
-      target -= totals[i];
-    }
-  }
+  // The winning tile is drawn UNIFORMLY at random, 1-in-25, by the protocol's
+  // VRF (user 2026-07-21). ETH on a tile does NOT change its chance of being
+  // drawn, and a tile nobody covered can win, in which case the round has no
+  // coverers. This engine was deploy-weighted until that correction; the copy
+  // it contradicted (docs, Explore, /terms, /privacy) was fixed in the same
+  // pass, per the copy-and-engine-must-agree rule.
+  const winningTile: TileId = rng.int(25);
 
   const coverers = new Map<Address, string | undefined>();
   for (const e of events) {
@@ -179,7 +176,14 @@ export function settleRound(
 
   // Invariant: deployed = vaulted + winnings; the protocol fee is a flat 10%
   // of deployed ETH (user 2026-07-14), 100% of which funds buybacks.
-  const vaultedWei = deployedWei / 10n;
+  //
+  // The uniform 1-in-25 draw can land on a tile nobody covered, leaving the
+  // round with no winners. There is then no one to pay the 90% to, so the
+  // WHOLE round vaults and funds buybacks (user 2026-07-21). Rare while the
+  // board is well covered, routine when it is not, so it must be modelled
+  // rather than left to divide by a winner set of zero.
+  const noWinners = winnerCount === 0;
+  const vaultedWei = noWinners ? deployedWei : deployedWei / 10n;
   const winningsWei = deployedWei - vaultedWei;
 
   return {
@@ -240,10 +244,11 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
     this.rng = createRng(deps.seed);
     this.now = deps.now;
     this.miners = buildMiners(this.rng);
-    // Grows into the hundreds (up to ~1000) so the live PEAPOT stat/table
+    // Sized to the Explore peapot chart's post-1-in-333 range so the live
+    // PEAPOT stat/table
     // agree with the Explore peapot chart (audit). Same rng draw count as
     // before, so which rounds hit is unchanged.
-    this.motherlodePotPea = 80 + this.rng.range(0, 120);
+    this.motherlodePotPea = this.rng.range(0, 30);
     this.prices = { peaUsd: 12.4, ethUsd: 3845 };
     this.circulatingPea = 468_000;
 
@@ -428,8 +433,8 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
       settledAt,
       motherlode,
     );
-    if (hit) this.motherlodePotPea = this.rng.range(0, 40);
-    else this.motherlodePotPea += 14 + this.rng.range(0, 18);
+    if (hit) this.motherlodePotPea = this.rng.range(0, 8);
+    else this.motherlodePotPea += 1 + this.rng.range(0, 2);
     this.circulatingPea += 9 + this.rng.range(0, 3);
     this.statsDirty = true; // protocol stats only move at settlement
     return summary;
@@ -519,8 +524,14 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
     if (this.priceTickAccum >= 3900) {
       this.priceTickAccum = 0;
       this.prices = {
-        peaUsd: +(this.prices.peaUsd * (1 + this.rng.range(-0.004, 0.004))).toFixed(4),
-        ethUsd: +(this.prices.ethUsd * (1 + this.rng.range(-0.002, 0.002))).toFixed(2),
+        peaUsd: +(
+          this.prices.peaUsd *
+          (1 + this.rng.range(-0.004, 0.004))
+        ).toFixed(4),
+        ethUsd: +(
+          this.prices.ethUsd *
+          (1 + this.rng.range(-0.002, 0.002))
+        ).toFixed(2),
       };
       changed = true;
     }
@@ -553,10 +564,7 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
   /** Cached per the referential-identity contract — stats change only at settlement. */
   private buildProtocolStats(): ProtocolStatsWire {
     if (!this.statsDirty && this.cachedStats) return this.cachedStats;
-    const rev7d = this.history.reduce(
-      (a, h) => a + BigInt(h.vaultedWei),
-      0n,
-    );
+    const rev7d = this.history.reduce((a, h) => a + BigInt(h.vaultedWei), 0n);
     this.cachedStats = {
       maxSupplyPea: ethToWei(3_000_000),
       circulatingPea: ethToWei(this.circulatingPea),
