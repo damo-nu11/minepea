@@ -97,7 +97,10 @@ function StakePageSim() {
     setAmount(fmtTokenFloor(available * pct, 6)); // floor at input precision (6dp)
 
   const globalDeposits = MOCK_GLOBAL_DEPOSITS_PEA + stakedPea;
-  const tvlUsd = prices.data ? globalDeposits * prices.data.peaUsd : 0;
+  // A 0 PEA price means no market yet, not a $0 pool — show the em-dash
+  // rather than asserting a dollar TVL the site cannot know.
+  const peaUsd = prices.data?.peaUsd ?? 0;
+  const tvlUsd = peaUsd > 0 ? globalDeposits * peaUsd : null;
 
   const ctaLabel = pending
     ? tab === "deposit"
@@ -221,7 +224,7 @@ function StakePageSim() {
               </Tooltip>
             </dt>
             <dd className="tnum text-[17px] font-semibold text-fg">
-              {fmtUsd(tvlUsd)}
+              {tvlUsd === null ? "—" : fmtUsd(tvlUsd)}
             </dd>
           </div>
           <div className="flex items-center justify-between">

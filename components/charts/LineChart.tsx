@@ -88,9 +88,23 @@ export function LineChart({
     if (times.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
+    // Map the cursor to the NEAREST POINT BY TIME, not by index. The
+    // crosshair and readout are positioned with xOf(times[i]), so an
+    // index-based guess only agrees with them when points are evenly spaced.
+    // Hourly market data is not evenly spaced (gaps where nothing traded), so
+    // index mapping quoted a different candle than the one under the cursor.
     const iW = Math.max(120, width - padLeft - PAD.right);
     const frac = Math.min(1, Math.max(0, (x - padLeft) / iW));
-    setHoverI(Math.round(frac * (times.length - 1)));
+    const tMin = times[0];
+    const tMax = times[times.length - 1];
+    const target = tMin + frac * (tMax - tMin);
+    let nearest = 0;
+    for (let i = 1; i < times.length; i++) {
+      if (Math.abs(times[i] - target) < Math.abs(times[nearest] - target)) {
+        nearest = i;
+      }
+    }
+    setHoverI(nearest);
   };
 
   const xTickIdx = useMemo(() => {

@@ -12,7 +12,13 @@ export function extent(values: number[]): [number, number] {
     if (v > max) max = v;
   }
   if (!Number.isFinite(min)) return [0, 1];
-  if (min === max) return [min - 1, max + 1];
+  if (min === max) {
+    // Pad relative to the value, not by a fixed 1. A sub-dollar price with a
+    // flat window (a young pool, or one quiet hour) otherwise gets a domain of
+    // [-1, 1]: a negative dollar axis with the line pinned to the zero line.
+    const pad = min === 0 ? 1 : Math.abs(min) * 0.05;
+    return [min - pad, max + pad];
+  }
   return [min, max];
 }
 
@@ -34,8 +40,18 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
 }
 
 const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 /** "8 Jun" style x-axis label (UTC — the mock anchor is UTC-fixed). */

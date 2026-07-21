@@ -461,7 +461,7 @@ export const TERMS: LegalDoc = {
           text: "Our collection and use of information in connection with the Services is described in the PEA Privacy Policy, which is incorporated into these Terms by reference. Please read it. By using the Services, you agree to the practices described in it.",
         },
         {
-          text: "In short, the Services are designed to minimise the personal information we handle. We do not require an account with us, and we do not collect a name, an address or a payment method. On-chain activity is inherently public: your wallet address, your deployments and your rewards are recorded on a public network, are visible to anyone, and cannot be deleted or made private by us or by you. Any profile information you add, such as a username or avatar, is public by design.",
+          text: "In short, the Services are designed to minimise the personal information we handle. We do not require an account with us, and we do not collect a name, an address or a payment method. Onchain activity is inherently public: your wallet address, your deployments and your rewards are recorded on a public network, are visible to anyone, and cannot be deleted or made private by us or by you. Any profile information you add, such as a username or avatar, is public by design.",
         },
         {
           text: "Third parties involved in delivering the Services, including Privy, Vercel, our database provider, Discord and the RPC and price sources we read from, process data under their own policies. Where the Privacy Policy and these Terms conflict on a privacy matter, the Privacy Policy governs.",
@@ -789,7 +789,7 @@ export const PRIVACY: LegalDoc = {
           ],
         },
         {
-          text: "WE CANNOT ERASE, ALTER, OR ANONYMISE ON-CHAIN RECORDS. Requests to delete, correct, or restrict blockchain data are technically impossible for us to fulfil, because that data lives on a public, immutable, decentralised network that we do not own or operate. This is a property of the technology, not a policy choice.",
+          text: "WE CANNOT ERASE, ALTER, OR ANONYMISE ONCHAIN RECORDS. Requests to delete, correct, or restrict blockchain data are technically impossible for us to fulfil, because that data lives on a public, immutable, decentralised network that we do not own or operate. This is a property of the technology, not a policy choice.",
         },
         {
           text: "Depending on where you live, you may have rights under local law to access, correct, delete, or restrict processing of personal information, to object to processing, to data portability, or to withdraw consent. To the extent those rights apply to information we actually hold, you may contact us through our official X account @minepea_ and we will respond as required by applicable law. In practice, we hold very little of the kind of information that identifies a person. We do not hold your name or any identity document. What we do hold is tied to a wallet address rather than to you: any username and avatar image you saved, your Discord account id and username if you linked Discord, our indexed copy of that wallet's public onchain activity, and server logs pairing the wallet address with request data such as an IP address. You can remove a profile and a Discord link at any time from the profile panel.",

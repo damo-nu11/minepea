@@ -13,12 +13,23 @@ import { fetchPriceHistory } from "@/lib/prices/geckoTerminal";
 
 export const revalidate = 300;
 
-export async function GET() {
+export async function GET(request: Request) {
   const data = await fetchPriceHistory();
-  return NextResponse.json(data, {
+  // The header ticker only needs the price. Serving it the full OHLCV series
+  // once a minute, on every page, in every tab, is megabytes an hour to
+  // transport one float.
+  const compact = new URL(request.url).searchParams.has("compact");
+  const body = compact ? { ...data, points: [] } : data;
+
+  // A failure must not be cached like a success. One transient 429 held under
+  // a 5 minute s-maxage (15 with stale-while-revalidate) blanks the price and
+  // the chart for every visitor for that whole window.
+  const failed = Boolean(data.error) || data.priceUsd === null;
+  return NextResponse.json(body, {
     headers: {
-      // Shared CDN cache; serve slightly stale rather than a gap while revalidating.
-      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900",
+      "Cache-Control": failed
+        ? "public, s-maxage=20, stale-while-revalidate=40"
+        : "public, s-maxage=300, stale-while-revalidate=900",
     },
   });
 }

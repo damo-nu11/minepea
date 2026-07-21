@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from "react";
+import { addressUrl, CONTRACTS } from "@/lib/contracts";
 
 export interface DocsSection {
   slug: string;
@@ -290,20 +291,29 @@ export const DOCS_SECTIONS: DocsSection[] = [
         </ul>
         <H2>Contracts</H2>
         <P>
-          The protocol&apos;s contract addresses, published here so you can
-          verify anything you interact with:
+          The protocol&apos;s deployed contracts. Check any address on the block
+          explorer before you interact with it.
         </P>
         <ul className="flex flex-col gap-3 text-[19px] leading-[1.65] text-fg-body">
-          {[
-            "Token Contract",
-            "GridMining Contract",
-            "Staking Contract",
-            "AutoMiner Contract",
-            "Vault Contract",
-          ].map((label) => (
+          {(
+            [
+              ["PEA Token", CONTRACTS.peaToken],
+              ["GridMining", CONTRACTS.gridMining],
+              ["Staking", CONTRACTS.staking],
+              ["AutoMiner", CONTRACTS.autoMiner],
+              ["Treasury", CONTRACTS.treasury],
+            ] as const
+          ).map(([label, address]) => (
             <li key={label}>
-              <B>{label}</B>: <span className="text-fg-muted">coming soon</span>
-              .
+              <B>{label}</B>:{" "}
+              <a
+                href={addressUrl(address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring rounded-sm break-all text-accent underline-offset-2 hover:underline"
+              >
+                {address}
+              </a>
             </li>
           ))}
         </ul>

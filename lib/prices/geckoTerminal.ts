@@ -10,34 +10,32 @@
  * backend would send) and the mapper into it. Components never see GeckoTerminal
  * JSON.
  *
- * SERVER ONLY. It is called from app/api/price-chart/route.ts so the response
- * is cached once for everyone: GeckoTerminal's free tier is ~30 requests per
- * minute per IP, which a per-browser fetch would burn through immediately.
+ * The FETCHING here is server only: it runs from app/api/price-chart/route.ts
+ * so the response is cached once for everyone, because GeckoTerminal's free
+ * tier is ~30 requests per minute per IP and a per-browser fetch would burn
+ * through that immediately. An API KEY, when one is added, belongs in that
+ * route or in a server-only module, never in this file's exported constants,
+ * which client code imports.
  */
+
+import { CONTRACTS } from "@/lib/contracts";
 
 /** GeckoTerminal's slug for Robinhood Chain (verified against /api/v2/networks). */
 export const GT_NETWORK = "robinhood";
 
 /**
- * The token whose chart the Explore hero renders.
+ * The token whose price and chart the site shows.
  *
- * >>> SWAP THIS ONE LINE WHEN THE REAL PEA TOKEN IS DEPLOYED. <<<
+ * Deliberately NOT a second copy of the address. It reads the deployed PEA
+ * token from lib/contracts.ts, so the chart, the header ticker and every
+ * contract call move together when that address changes. An earlier version
+ * kept its own copy and the header ended up pointing at an unrelated token.
  *
- * This is currently a TEST token supplied by the user (2026-07-21) so the
- * chart can be exercised before launch. It is NOT PEA.
- *
- * NOTE that this address now drives the displayed PEA PRICE as well as the
- * chart: `usePrices` overlays the spot price from here, which is what makes
- * the hero rail, the header ticker and the chart agree instead of showing
- * three different numbers. The consequence is that while a test address sits
- * here, the whole site quotes that token's price as PEA's. Swapping the line
- * below fixes every surface at once.
- *
- * `NEXT_PUBLIC_PEA_CHART_TOKEN` overrides it without a code change.
+ * `NEXT_PUBLIC_PEA_CHART_TOKEN` still overrides, for pointing the chart at a
+ * different market without touching the contract wiring.
  */
-export const CHART_TOKEN_ADDRESS =
-  process.env.NEXT_PUBLIC_PEA_CHART_TOKEN ??
-  "0xe158E2E7b750fA971b12Fb2bF2A7262f94010aC8";
+export const CHART_TOKEN_ADDRESS: string =
+  process.env.NEXT_PUBLIC_PEA_CHART_TOKEN ?? CONTRACTS.peaToken;
 
 /**
  * PEA held back from circulation: the team and treasury allocation.
@@ -173,9 +171,11 @@ export async function fetchTokenMarket(
  * CHART_TOKEN_ADDRESS is genuinely a one-line change, and so a token that
  * later migrates to a deeper pool follows automatically.
  */
-export async function findDeepestPool(
-  token: string,
-): Promise<{ address: string; priceUsd: number | null } | null> {
+export async function findDeepestPool(token: string): Promise<{
+  address: string;
+  priceUsd: number | null;
+  reserveUsd: number | null;
+} | null> {
   const json = (await gt(`/networks/${GT_NETWORK}/tokens/${token}/pools`)) as {
     data?: {
       attributes?: {
@@ -186,18 +186,27 @@ export async function findDeepestPool(
     }[];
   };
   const pools = json.data ?? [];
-  let best: { address: string; priceUsd: number | null } | null = null;
+  let best: {
+    address: string;
+    priceUsd: number | null;
+    reserveUsd: number | null;
+  } | null = null;
   let bestReserve = -1;
   for (const p of pools) {
     const addr = p.attributes?.address;
     if (!addr) continue;
-    const reserve = Number(p.attributes?.reserve_in_usd ?? 0);
+    // Keep "absent" distinct from "zero": num() returns null when the field
+    // is missing, so a pool that reports no reserve does not overwrite the
+    // token-level fallback with a hard 0. Only the comparison coerces.
+    const reserveUsd = num(p.attributes?.reserve_in_usd);
+    const reserve = reserveUsd ?? 0;
     if (reserve > bestReserve) {
       bestReserve = reserve;
-      const spot = Number(p.attributes?.base_token_price_usd);
+      const spot = num(p.attributes?.base_token_price_usd);
       best = {
         address: addr,
-        priceUsd: Number.isFinite(spot) && spot > 0 ? spot : null,
+        priceUsd: spot !== null && spot > 0 ? spot : null,
+        reserveUsd,
       };
     }
   }
@@ -247,7 +256,20 @@ export async function fetchPriceHistory(
     // rail still has a number when only candles came back.
     const priceUsd =
       pool.priceUsd ?? (points.length ? points[points.length - 1].v : null);
-    return { points, priceUsd, poolAddress: pool.address, market };
+    // Publish the POOL's reserve as liquidity. The token endpoint's
+    // total_reserve_in_usd is a different measure and reads far lower than
+    // what every aggregator shows for the same pair, so quoting it would put
+    // us visibly out of step with Dexscreener on a number people trade on.
+    const withPoolLiquidity =
+      market && pool.reserveUsd !== null
+        ? { ...market, liquidityUsd: pool.reserveUsd }
+        : market;
+    return {
+      points,
+      priceUsd,
+      poolAddress: pool.address,
+      market: withPoolLiquidity,
+    };
   } catch (e) {
     return {
       points: [],

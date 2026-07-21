@@ -130,8 +130,34 @@ describe("fetchPriceHistory", () => {
       fdvUsd: 57.9,
       marketCapUsd: null,
       volume24hUsd: 4.14,
-      liquidityUsd: 0.0198,
+      // Pool reserve, NOT the token endpoint's total_reserve_in_usd (0.0198
+      // in TOKEN_BODY). Aggregators publish the pool figure; quoting the
+      // other one put the site ~4x below every explorer for the same pair.
+      liquidityUsd: 100,
     });
+  });
+
+  it("reports liquidity from the pool, not the token total reserve", async () => {
+    stubFetch({
+      pools: {
+        data: [pool("0xshallow", "5", "1.0"), pool("0xdeep", "4321", "1.0")],
+      },
+      ohlcv: NEWEST_FIRST,
+    });
+    const r = await fetchPriceHistory("0xtoken");
+    expect(r.poolAddress).toBe("0xdeep");
+    expect(r.market?.liquidityUsd).toBe(4321);
+  });
+
+  it("falls back to the token total reserve when the pool reports none", async () => {
+    stubFetch({
+      pools: {
+        data: [{ attributes: { address: "0xp", base_token_price_usd: "1" } }],
+      },
+      ohlcv: NEWEST_FIRST,
+    });
+    const r = await fetchPriceHistory("0xtoken");
+    expect(r.market?.liquidityUsd).toBe(0.0198);
   });
 
   it("prefers the pool's spot price for the rail, so it cannot drift from the chart", async () => {

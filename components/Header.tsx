@@ -23,6 +23,7 @@ import {
   XIcon,
 } from "@/components/icons";
 import { PeaWordmark } from "@/components/PeaWordmark";
+import { CONTRACTS } from "@/lib/contracts";
 import { usePrices } from "@/lib/hooks/useGame";
 
 interface NavLink {
@@ -49,10 +50,14 @@ function ActiveUnderline() {
   );
 }
 
-/** PEA has no market yet — placeholder pair the user supplied (2026-07-13);
- * swap for the real PEA pair at launch. */
-const PEA_CHART_URL =
-  "https://dexscreener.com/robinhood/0xa70fc67c9f69da90b63a0e4c05d229954574e313";
+/** Dexscreener's slug for Robinhood Chain (matches its pair URLs). */
+const CHAIN_SLUG = "robinhood";
+
+/** Dexscreener resolves a token address to its deepest pair, so this is
+ * derived from the deployed PEA token rather than hardcoded to one pair.
+ * It used to be a hardcoded placeholder pair, which meant the PEA ticker
+ * linked to an unrelated token; deriving it removes that class of drift. */
+const PEA_CHART_URL = `https://dexscreener.com/${CHAIN_SLUG}/${CONTRACTS.peaToken}`;
 /** The Robinhood chain quotes everything IN WETH (no ETH/stable pair exists
  * there), so ETH links to Dexscreener's deepest mainnet WETH/USDC pool —
  * the canonical ETH price chart on the same aggregator (API-verified). */

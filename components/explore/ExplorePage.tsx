@@ -52,7 +52,7 @@ import { PriceChart } from "@/components/explore/PriceChart";
 import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
-import { txUrl } from "@/lib/contracts";
+import { addressUrl, CONTRACTS, txUrl } from "@/lib/contracts";
 import { IS_API_MODE } from "@/lib/engineContext";
 import { fmtCompact, fmtInt, fmtUsd, shortAddr } from "@/lib/format";
 import { usePrices, useRoundHistory } from "@/lib/hooks/useGame";
@@ -286,7 +286,10 @@ function Hero() {
           value={usdCompact(a.allTimeDeployedUsd)}
         />
       </div>
-      <PriceChart fallback={a.priceSeries} />
+      {/* No simulated fallback: with no market the designed empty state is
+          the honest render. A mock series here draws an invented price
+          history under a "PEA / USD" heading with nothing marking it. */}
+      <PriceChart />
     </div>
   );
 }
@@ -452,6 +455,11 @@ const BuybacksTab = memo(function BuybacksTab() {
 
 const TokenTab = memo(function TokenTab() {
   const a = ANALYTICS;
+  // Supply and market cap come from the same onchain source as the hero rail.
+  // They used to read the mock bundle, so one scroll of this page showed two
+  // market caps orders of magnitude apart under identical labels.
+  const md = useMarketData().data;
+  const sv = supplyView(md?.market, md?.priceUsd);
   const mintW = weeklySum(a.mintPeaDaily);
   const burnW = weeklySum(a.burnPeaDaily);
   const weeks = mintW.map((p) => new Date(p.t).getUTCDate().toString());
@@ -460,12 +468,12 @@ const TokenTab = memo(function TokenTab() {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Circulating Supply"
-          value={fmtInt(a.circulatingPea)}
+          value={sv.circulating != null ? fmtInt(sv.circulating) : "—"}
           caption="Circulating PEA"
         />
         <StatCard
           title="Market Cap"
-          value={usdCompact(a.marketCapUsd)}
+          value={usdAuto(sv.marketCapUsd)}
           caption="Circulating × live price"
         />
         <StatCard
@@ -1046,6 +1054,61 @@ const MinersTab = memo(function MinersTab() {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+/**
+ * Deployed contract addresses, straight from lib/contracts.ts so this panel
+ * can never drift from what the app actually calls. Every row links to the
+ * block explorer, which is the point: a published address nobody can verify
+ * is not much of a disclosure.
+ */
+function ContractsSection() {
+  const rows: { label: string; address: string }[] = [
+    { label: "PEA Token", address: CONTRACTS.peaToken },
+    { label: "GridMining", address: CONTRACTS.gridMining },
+    { label: "Staking", address: CONTRACTS.staking },
+    { label: "AutoMiner", address: CONTRACTS.autoMiner },
+    { label: "Treasury", address: CONTRACTS.treasury },
+  ];
+  return (
+    <ChartCard
+      title="Contracts"
+      subtitle="Verify any address on the block explorer before you interact with it"
+    >
+      <TableScroller label="Deployed contract addresses">
+        <table className="w-full min-w-[560px] border-collapse text-left">
+          <caption className="sr-only">PEA contract addresses</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH}>
+                Contract
+              </th>
+              <th scope="col" className={TH}>
+                Address
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label}>
+                <td className={TD}>{r.label}</td>
+                <td className={TD}>
+                  <a
+                    href={addressUrl(r.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="focus-ring tnum rounded-sm break-all text-accent underline-offset-2 hover:underline"
+                  >
+                    {r.address}
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroller>
+    </ChartCard>
+  );
+}
+
 export function ExplorePage() {
   const [tab, setTab] = useState<Tab>("mining");
 
@@ -1122,6 +1185,10 @@ export function ExplorePage() {
         {tab === "staking" &&
           (IS_API_MODE ? <LiveStakingTab /> : <StakingTab />)}
         {tab === "miners" && (IS_API_MODE ? <LiveMinersTab /> : <MinersTab />)}
+      </div>
+
+      <div className="mb-20">
+        <ContractsSection />
       </div>
     </WideContainer>
   );

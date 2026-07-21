@@ -74,6 +74,9 @@ export function supplyView(
   };
 }
 
+/** Same cadence as the header price store, so the two cannot drift apart. */
+const REFRESH_MS = 60_000;
+
 /** One in-flight request shared by every consumer mounted in the same tick. */
 let inFlight: Promise<MarketData | null> | null = null;
 
@@ -111,19 +114,32 @@ export function useMarketData(): MarketResult {
 
   useEffect(() => {
     let live = true;
-    inFlight ??= load().finally(() => {
-      // Let the next mount start a fresh request rather than replaying a
-      // response that may be minutes old by then.
-      inFlight = null;
-    });
-    void inFlight.then((data) => {
-      if (!live) return;
-      setState(
-        data ? { data, status: "live" } : { data: undefined, status: "error" },
-      );
-    });
+    const run = () => {
+      inFlight ??= load().finally(() => {
+        // Let the next tick start a fresh request rather than replaying a
+        // response that may be minutes old by then.
+        inFlight = null;
+      });
+      void inFlight.then((data) => {
+        if (!live) return;
+        // Keep the last good payload on a transient failure instead of
+        // blanking the whole rail; only report error if nothing was ever loaded.
+        setState((prev) =>
+          data
+            ? { data, status: "live" }
+            : prev.data
+              ? prev
+              : { data: undefined, status: "error" },
+        );
+      });
+    };
+    run();
+    // Matches the price store's cadence so Market Cap and Price never drift
+    // apart on a tab left open, which is the normal way a dashboard is used.
+    const timer = setInterval(run, REFRESH_MS);
     return () => {
       live = false;
+      clearInterval(timer);
     };
   }, []);
 

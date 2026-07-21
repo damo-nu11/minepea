@@ -118,9 +118,8 @@ export function LiveHero() {
           value={allTime === null ? "—" : `Ξ ${eth4(allTime)}`}
         />
       </div>
-      {/* PEA/USD price chart (design slot preserved). No mock series: shows
-          the awaiting state until the pair is indexed; the real series wiring
-          (GeckoTerminal/DexScreener OHLCV) lands with the listing. */}
+      {/* PEA/USD price chart, real GeckoTerminal OHLCV via /api/price-chart.
+          Shows the awaiting state until the pair is indexed. */}
       <PriceChart />
     </div>
   );

@@ -249,7 +249,13 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
     // agree with the Explore peapot chart (audit). Same rng draw count as
     // before, so which rounds hit is unchanged.
     this.motherlodePotPea = this.rng.range(0, 30);
-    this.prices = { peaUsd: 12.4, ethUsd: 3845 };
+    // PEA has no market, so the engine quotes NO price rather than an
+    // invented one: every PEA-USD surface reads 0 as "no market yet" and
+    // renders an em-dash. A simulated figure here reached the header ticker,
+    // the Explore rail and Stake TVL as though it were live. The real price
+    // arrives from the market feed (lib/livePrices) once a pool exists.
+    // ETH stays simulated because a real ETH quote overlays it anyway.
+    this.prices = { peaUsd: 0, ethUsd: 3845 };
     this.circulatingPea = 468_000;
 
     // Fast-forward SEED_ROUNDS settled rounds ending just before "now",

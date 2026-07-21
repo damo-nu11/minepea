@@ -68,7 +68,10 @@ export const liveEthPrice = new LiveEthPriceStore();
  * a chart drawn from another.
  *
  * Polls our origin, not GeckoTerminal: the route is cached for 5 minutes, so
- * this costs nothing upstream no matter how many tabs are open.
+ * this costs nothing upstream no matter how many tabs are open. It asks for
+ * the compact payload because the header is in the root layout, so the full
+ * OHLCV series would be re-downloaded on every page, in every tab, once a
+ * minute, to read a single number.
  */
 class LivePeaPriceStore {
   private listeners = new Set<Listener>();
@@ -95,7 +98,7 @@ class LivePeaPriceStore {
 
   private async poll() {
     try {
-      const res = await fetch("/api/price-chart");
+      const res = await fetch("/api/price-chart?compact=1");
       if (!res.ok) return; // keep last known price
       const body = (await res.json()) as { priceUsd?: number | null };
       const p = Number(body.priceUsd);

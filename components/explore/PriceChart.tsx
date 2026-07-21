@@ -9,16 +9,17 @@
  * which is exactly how the Explore mechanics cards ended up mock-only.
  *
  * Data is real: GeckoTerminal OHLCV through our cached /api/price-chart.
- * `fallback` lets the mock hero keep drawing its simulated series when the
- * upstream has nothing, so the card is never empty in local development.
+ * There is deliberately NO simulated fallback. With no market the honest
+ * render is the empty state; a mock series here draws an invented price
+ * history under a "PEA / USD" heading with nothing marking it as fake.
  */
 
 import { useMemo, useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
+import { fmtDate } from "@/components/charts/scale";
 import { C } from "@/components/explore/shared";
 import { PeaIcon } from "@/components/icons";
 import { usePriceChart } from "@/lib/hooks/usePriceChart";
-import type { PricePointWire } from "@/lib/prices/geckoTerminal";
 
 const RANGES = [30, 90, 180] as const;
 type Range = (typeof RANGES)[number];
@@ -40,18 +41,16 @@ export function usdAxis(v: number): string {
 }
 
 export function PriceChart({
-  fallback,
   emptyNote = "Awaiting market listing. The price chart goes live once the PEA pair is indexed.",
   priceLabel,
 }: {
-  fallback?: PricePointWire[];
   emptyNote?: string;
   priceLabel?: string;
 }) {
   const { data, status } = usePriceChart();
   const [range, setRange] = useState<Range>(90);
 
-  const series = data ?? fallback;
+  const series = data;
 
   // Slice by elapsed time, not by point count: the upstream series is hourly
   // and a young pool has only a handful of points, so `slice(-90)` would show
@@ -65,6 +64,28 @@ export function PriceChart({
   }, [series, range]);
 
   const hasChart = sliced.length >= 2;
+
+  // How many days the drawn window ACTUALLY spans. The chips promise 30/90
+  // days; a young pool has hours. Labelling the axis and the aria-label from
+  // the real span keeps the chart from asserting a range it does not have.
+  const spanDays =
+    sliced.length >= 2
+      ? (sliced[sliced.length - 1].t - sliced[0].t) / DAY_MS
+      : 0;
+  // Under ~3 days the date alone repeats on consecutive ticks ("20 Jul" twice),
+  // so show the hour instead.
+  const xFmt = (t: number) =>
+    spanDays <= 3
+      ? new Date(t).toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "UTC",
+        })
+      : fmtDate(t);
+  const spanLabel =
+    spanDays < 1
+      ? `${Math.max(1, Math.round(spanDays * 24))} hours`
+      : `${Math.round(spanDays)} days`;
 
   return (
     <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
@@ -82,7 +103,7 @@ export function PriceChart({
               type="button"
               onClick={() => setRange(r)}
               aria-pressed={range === r}
-              disabled={!hasChart}
+              disabled={!hasChart || (r !== 180 && spanDays < r)}
               className={`tnum h-7 cursor-pointer rounded-full border px-3 text-[12px] font-semibold transition-all disabled:cursor-default disabled:opacity-40 ${
                 range === r
                   ? "border-accent/40 bg-surface-active text-fg shadow-[0_0_14px_-4px_var(--color-accent)]"
@@ -103,11 +124,9 @@ export function PriceChart({
             ]}
             height={260}
             yFmt={usdAxis}
+            xFmt={xFmt}
             zeroFloor={false}
-            label={
-              priceLabel ??
-              `PEA price over the last ${range === 180 ? "all available time" : `${range} days`}`
-            }
+            label={priceLabel ?? `PEA price over the last ${spanLabel}`}
           />
         </div>
       ) : (
