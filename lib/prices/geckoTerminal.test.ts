@@ -9,7 +9,11 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchPriceHistory, findDeepestPool } from "@/lib/prices/geckoTerminal";
+import {
+  candleFor,
+  fetchPriceHistory,
+  findDeepestPool,
+} from "@/lib/prices/geckoTerminal";
 
 function pool(address: string, reserve: string, price: string) {
   return {
@@ -57,6 +61,43 @@ function stubFetch(routes: {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
+describe("candleFor", () => {
+  // A fixed timeframe cannot serve a pool at every age. Hourly candles on a
+  // 90-minute-old pool return two points, which draws a straight line and
+  // says nothing; that is what shipped before this existed.
+  it("uses minute candles for a pool only hours old", () => {
+    expect(candleFor(1.5 * HOUR)).toEqual({
+      timeframe: "minute",
+      aggregate: 1,
+    });
+  });
+
+  it("widens the candle as the pool ages instead of dropping points", () => {
+    const tiers = [2 * DAY, 7 * DAY, 21 * DAY, 90 * DAY, 400 * DAY].map(
+      candleFor,
+    );
+    // Each tier must stay inside GeckoTerminal's 1000-candle cap.
+    const minutes = { minute: 1, hour: 60, day: 1440 } as const;
+    const spans = tiers.map((t) => t.aggregate * minutes[t.timeframe] * 1000);
+    for (const [i, age] of [
+      2 * DAY,
+      7 * DAY,
+      21 * DAY,
+      90 * DAY,
+      400 * DAY,
+    ].entries()) {
+      expect(spans[i] * 60_000).toBeGreaterThanOrEqual(age);
+    }
+  });
+
+  it("assumes a mature pool when the age is unknown", () => {
+    expect(candleFor(null)).toEqual({ timeframe: "hour", aggregate: 1 });
+  });
+});
 
 describe("findDeepestPool", () => {
   it("picks the pool with the largest USD reserve, not the first listed", async () => {

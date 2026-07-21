@@ -177,6 +177,8 @@ export async function findDeepestPool(token: string): Promise<{
   address: string;
   priceUsd: number | null;
   reserveUsd: number | null;
+  /** Pool creation time, epoch ms. Drives the candle size. */
+  createdAt: number | null;
 } | null> {
   const json = (await gt(`/networks/${GT_NETWORK}/tokens/${token}/pools`)) as {
     data?: {
@@ -184,6 +186,7 @@ export async function findDeepestPool(token: string): Promise<{
         address?: string;
         reserve_in_usd?: string;
         base_token_price_usd?: string;
+        pool_created_at?: string;
       };
     }[];
   };
@@ -192,6 +195,7 @@ export async function findDeepestPool(token: string): Promise<{
     address: string;
     priceUsd: number | null;
     reserveUsd: number | null;
+    createdAt: number | null;
   } | null = null;
   let bestReserve = -1;
   for (const p of pools) {
@@ -205,10 +209,12 @@ export async function findDeepestPool(token: string): Promise<{
     if (reserve > bestReserve) {
       bestReserve = reserve;
       const spot = num(p.attributes?.base_token_price_usd);
+      const created = Date.parse(p.attributes?.pool_created_at ?? "");
       best = {
         address: addr,
         priceUsd: spot !== null && spot > 0 ? spot : null,
         reserveUsd,
+        createdAt: Number.isFinite(created) ? created : null,
       };
     }
   }
@@ -216,12 +222,35 @@ export async function findDeepestPool(token: string): Promise<{
 }
 
 /**
- * Hourly closes for a pool, oldest first.
+ * Pick the candle size from how much history the pool actually has.
  *
- * Hourly rather than daily deliberately: a freshly launched pool has only a
- * couple of daily candles, which draws a chart with two points on it. Hourly
- * gives a real curve from day one and still covers ~41 days at the API's
- * 1000-point maximum.
+ * A fixed timeframe cannot serve both ends. Hourly candles on a pool ninety
+ * minutes old return TWO points, which draws a straight diagonal line and
+ * tells the reader nothing; daily candles on the same pool return one. The
+ * rule below keeps roughly 60 to 1000 points on screen at every age, which is
+ * what makes a price chart readable.
+ *
+ * GeckoTerminal caps a request at 1000 candles, so each tier is chosen to
+ * cover its whole window within that limit.
+ */
+export function candleFor(ageMs: number | null): {
+  timeframe: "minute" | "hour" | "day";
+  aggregate: number;
+} {
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  // Unknown age: assume mature and let the hourly tier cover ~41 days.
+  if (ageMs === null) return { timeframe: "hour", aggregate: 1 };
+  if (ageMs <= 16 * HOUR) return { timeframe: "minute", aggregate: 1 };
+  if (ageMs <= 3 * DAY) return { timeframe: "minute", aggregate: 5 };
+  if (ageMs <= 10 * DAY) return { timeframe: "minute", aggregate: 15 };
+  if (ageMs <= 40 * DAY) return { timeframe: "hour", aggregate: 1 };
+  if (ageMs <= 160 * DAY) return { timeframe: "hour", aggregate: 4 };
+  return { timeframe: "day", aggregate: 1 };
+}
+
+/**
+ * Closes for a pool, oldest first, at a candle size matched to its age.
  */
 export async function fetchPriceHistory(
   token: string = CHART_TOKEN_ADDRESS,
@@ -242,8 +271,11 @@ export async function fetchPriceHistory(
         error: "no pool for token",
       };
     }
+    const { timeframe, aggregate } = candleFor(
+      pool.createdAt === null ? null : Date.now() - pool.createdAt,
+    );
     const json = (await gt(
-      `/networks/${GT_NETWORK}/pools/${pool.address}/ohlcv/hour?aggregate=1&limit=1000&currency=usd`,
+      `/networks/${GT_NETWORK}/pools/${pool.address}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=1000&currency=usd`,
     )) as {
       data?: { attributes?: { ohlcv_list?: number[][] } };
     };

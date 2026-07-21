@@ -67,17 +67,11 @@ export function PriceChart({
 
   const hasChart = sliced.length >= 2;
 
-  // Two different spans, and conflating them is a trap.
-  //
-  // availableDays is how much history EXISTS. It decides which chips are
-  // offerable, and must be measured on the unsliced series: measuring it on
-  // the drawn window makes the test feed on its own output, so picking 30D
-  // shrinks the span to 30 and then disables every longer chip.
-  const availableDays =
-    series && series.length >= 2
-      ? (series[series.length - 1].t - series[0].t) / DAY_MS
-      : 0;
-  // spanDays is how much is DRAWN. It decides labelling only.
+  // How much is actually DRAWN, which drives the axis format and the
+  // accessible label. Every range stays clickable regardless: a young pool
+  // simply shows everything it has under any chip, which is how every price
+  // site behaves. Gating the chips on available history instead made all but
+  // ALL unclickable for days after launch.
   const spanDays =
     sliced.length >= 2
       ? (sliced[sliced.length - 1].t - sliced[0].t) / DAY_MS
@@ -103,7 +97,11 @@ export function PriceChart({
       : plural(Math.round(spanDays), "day");
 
   return (
-    <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
+    // No h-full here: the grid already stretches this item to the row, and an
+    // explicit height opts the item OUT of that stretch, then resolves against
+    // an indefinite row. Combined with the chart wrapper's own h-full it forms
+    // a height cycle and the browser falls back to content height.
+    <div className="flex flex-col rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <PeaIcon size={18} className="text-accent" />
@@ -118,9 +116,7 @@ export function PriceChart({
               type="button"
               onClick={() => setRange(r)}
               aria-pressed={range === r}
-              disabled={
-                !hasChart || (r !== 180 && r !== range && availableDays < r)
-              }
+              disabled={!hasChart}
               className={`tnum h-7 cursor-pointer rounded-full border px-3 text-[12px] font-semibold transition-all disabled:cursor-default disabled:opacity-40 ${
                 range === r
                   ? "border-accent/40 bg-surface-active text-fg shadow-[0_0_14px_-4px_var(--color-accent)]"
@@ -134,8 +130,9 @@ export function PriceChart({
       </div>
 
       {hasChart ? (
-        <div className="mt-4">
+        <div className="mt-4 min-h-[260px] flex-1">
           <LineChart
+            fillHeight
             series={[
               { name: "PEA", color: C.accent, points: sliced, fill: true },
             ]}
@@ -147,7 +144,7 @@ export function PriceChart({
           />
         </div>
       ) : (
-        <div className="mt-4 flex h-[260px] flex-col items-center justify-center gap-1.5">
+        <div className="mt-4 flex min-h-[260px] flex-1 flex-col items-center justify-center gap-1.5">
           <span className="tnum text-[28px] font-bold text-fg">
             {status === "loading" ? "" : "—"}
           </span>

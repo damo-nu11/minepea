@@ -35,6 +35,7 @@ export function LineChart({
   xFmt = fmtDate,
   label,
   zeroFloor = true,
+  fillHeight = false,
 }: {
   series: LineSeries[];
   height?: number;
@@ -46,19 +47,43 @@ export function LineChart({
   label: string;
   /** Extend the y-domain down to 0 (most metrics); false = fit data. */
   zeroFloor?: boolean;
+  /** Take the wrapper's height instead of the fixed `height`, so the chart
+   * grows into a flex parent. `height` stays the floor. Safe against a
+   * measure/render loop only because the wrapper is sized by its parent
+   * (flex-1) rather than by this SVG. */
+  fillHeight?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const gradId = useId();
   const [width, setWidth] = useState(FALLBACK_W);
+  const [measuredH, setMeasuredH] = useState<number | null>(null);
   const [hoverI, setHoverI] = useState<number | null>(null);
 
   useEffect(() => {
     const el = wrapRef.current;
-    if (!el || typeof ResizeObserver !== "function") return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth || FALLBACK_W));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    if (!el) return;
+    const measure = () => {
+      setWidth(el.clientWidth || FALLBACK_W);
+      if (fillHeight) setMeasuredH(el.clientHeight || null);
+    };
+    // Measure directly rather than waiting to be told. A ResizeObserver that
+    // never delivers its first callback leaves the chart pinned to the
+    // fallback size forever, which is silent: the SVG still scales to width,
+    // so only the vertical fill and the tick density are wrong.
+    measure();
+    const ro =
+      typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [fillHeight]);
+
+  // Never shrink below the caller's height: a collapsed flex parent would
+  // otherwise render a zero-height chart.
+  const h = fillHeight && measuredH ? Math.max(height, measuredH) : height;
 
   const { xOf, yOf, ticks, times, padLeft } = useMemo(() => {
     const times = series[0]?.points.map((p) => p.t) ?? [];
@@ -69,20 +94,29 @@ export function LineChart({
     const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    // The y gutter sizes to its widest label. It used to be a fixed 46px,
-    // which silently clipped the leading characters once a formatter emitted
-    // anything longer (a sub-cent price axis renders "$0.00600", not "12").
-    // 10.5px type in the brand face measures ~6.4px per character.
-    const widest = ticks.reduce((m, v) => Math.max(m, yFmt(v).length), 0);
-    const padLeft = Math.max(PAD.left, Math.ceil(widest * 6.4) + 14);
+    // The y gutter sizes to its widest label. A fixed width silently clips the
+    // leading characters once a formatter emits anything long (a price axis
+    // renders "$280.00" or "$0.00600", not "12").
+    //
+    // Width is estimated per character, not by length: the brand face is wide
+    // and geometric, so digits run ~0.73em while separators run ~0.33em. A
+    // flat per-character average under-measures "$280.00" enough to clip the
+    // "$" clean off.
+    const labelWidth = (label: string) => {
+      let w = 0;
+      for (const ch of label) w += ch === "." || ch === "," ? 3.6 : 7.7;
+      return w;
+    };
+    const widest = ticks.reduce((m, v) => Math.max(m, labelWidth(yFmt(v))), 0);
+    const padLeft = Math.max(PAD.left, Math.ceil(widest) + 12);
     const iW = Math.max(120, width - padLeft - PAD.right);
-    const iH = height - PAD.top - PAD.bottom;
+    const iH = h - PAD.top - PAD.bottom;
     const xOf = (t: number) =>
       padLeft + ((t - tMin) / Math.max(1, tMax - tMin)) * iW;
     const yOf = (v: number) =>
       PAD.top + iH - ((v - vMin) / Math.max(1e-9, vMax - vMin)) * iH;
     return { xOf, yOf, ticks, times, padLeft };
-  }, [series, width, height, zeroFloor, yFmt]);
+  }, [series, width, h, zeroFloor, yFmt]);
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (times.length === 0) return;
@@ -142,13 +176,20 @@ export function LineChart({
   }, [series, yFmt, label]);
 
   return (
-    <div ref={wrapRef} className="relative w-full">
+    <div
+      ref={wrapRef}
+      // With fillHeight the wrapper must take its height FROM ITS PARENT.
+      // Left to size itself it hugs the SVG, so measuring it just returns the
+      // height we already set: the observer reads its own output and the
+      // chart never grows.
+      className={`relative w-full ${fillHeight ? "h-full" : ""}`}
+    >
       <svg
         role="img"
         aria-label={a11yLabel}
         width="100%"
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
+        height={h}
+        viewBox={`0 0 ${width} ${h}`}
         preserveAspectRatio="none"
         onPointerMove={onMove}
         onPointerLeave={() => setHoverI(null)}
@@ -176,12 +217,16 @@ export function LineChart({
           </g>
         ))}
         {/* X labels */}
-        {xTickIdx.map((i) => (
+        {xTickIdx.map((i, n) => (
           <text
             key={i}
             x={xOf(times[i])}
-            y={height - 6}
-            textAnchor="middle"
+            y={h - 6}
+            // Centre-anchoring the edge labels hangs half of each outside the
+            // viewBox, which clips them ("20:0(" instead of "20:00").
+            textAnchor={
+              n === 0 ? "start" : n === xTickIdx.length - 1 ? "end" : "middle"
+            }
             fontSize="10.5"
             fill="var(--color-fg-muted)"
           >
@@ -240,7 +285,7 @@ export function LineChart({
               x1={xOf(times[hoverI])}
               x2={xOf(times[hoverI])}
               y1={PAD.top}
-              y2={height - PAD.bottom}
+              y2={h - PAD.bottom}
               stroke="var(--color-fg-muted)"
               strokeOpacity="0.5"
               strokeDasharray="3 3"

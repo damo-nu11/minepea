@@ -69,13 +69,14 @@ describe("PriceChart range chips", () => {
     expect(all).not.toBeDisabled();
   });
 
-  it("offers a window the data actually covers", () => {
-    // 10 days of history: the 7D window is real and must be offerable.
-    setData(series(24 * 10));
+  it("keeps every range clickable, even when the pool is younger than the window", () => {
+    // 2 hours of history. Gating chips on available history left a freshly
+    // listed token with only ALL clickable for days.
+    setData(series(2));
     render(<PriceChart />);
-    const sevenDay = chips().find((b) => b.textContent === "7D");
-    expect(sevenDay).toBeDefined();
-    expect(sevenDay).not.toBeDisabled();
+    const cs = chips();
+    expect(cs.length).toBe(3);
+    for (const c of cs) expect(c).not.toBeDisabled();
   });
 
   it("describes the span it actually drew, not the one the chip claims", () => {
