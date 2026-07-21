@@ -16,6 +16,7 @@ import { LineChart } from "@/components/charts/LineChart";
 import { fmtDate } from "@/components/charts/scale";
 import { PeaIcon } from "@/components/icons";
 import { RelTime } from "@/components/RelTime";
+import { txUrl } from "@/lib/contracts";
 import {
   bucketRows,
   seriesCumulative,
@@ -524,9 +525,19 @@ export const LiveBuybacksTab = memo(function LiveBuybacksTab() {
                         {tx.t ? <RelTime at={Date.parse(tx.t)} /> : "—"}
                       </td>
                       <td className={`${TD} !h-12 tnum text-fg-body`}>
-                        {tx.txHash
-                          ? `${tx.txHash.slice(0, 6)}...${tx.txHash.slice(-4)}`
-                          : "—"}
+                        {tx.txHash ? (
+                          <a
+                            href={txUrl(tx.txHash)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={tx.txHash}
+                            className="tnum text-fg-body underline-offset-2 transition hover:text-accent hover:underline focus-ring rounded-sm"
+                          >
+                            {`${tx.txHash.slice(0, 6)}...${tx.txHash.slice(-4)}`}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className={`${TD} !h-12 text-right`}>
                         <ValueWithIcon

@@ -11,6 +11,7 @@
  * - No portal: position:fixed renders correctly from the provider root.
  */
 
+import { txUrl } from "@/lib/contracts";
 import {
   createContext,
   useCallback,
@@ -22,6 +23,8 @@ import {
 } from "react";
 
 const DISMISS_MS = 5_000;
+/** Pending/again-later messages need longer than a success confirmation. */
+const INFO_DISMISS_MS = 10_000;
 const MAX_TOASTS = 4;
 
 export type ToastVariant = "success" | "error" | "info";
@@ -76,10 +79,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (input: ToastInput) => {
       const id = nextId.current++;
       setToasts((prev) => [...prev, { ...input, id }].slice(-MAX_TOASTS));
-      timers.current.set(
-        id,
-        setTimeout(() => dismiss(id), DISMISS_MS),
-      );
+      // A failure is the one message a user has to act on: it carries the
+      // reason and the transaction hash. Dismissing it after five seconds
+      // threw both away before they could be read, let alone clicked.
+      // Errors now wait to be dismissed; everything else still clears.
+      const ms =
+        input.variant === "error"
+          ? null
+          : input.variant === "info"
+            ? INFO_DISMISS_MS
+            : DISMISS_MS;
+      if (ms !== null) {
+        timers.current.set(
+          id,
+          setTimeout(() => dismiss(id), ms),
+        );
+      }
     },
     [dismiss],
   );
@@ -107,7 +122,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             className="pointer-events-auto flex items-stretch overflow-hidden rounded-[12px] border border-line-slate bg-panel shadow-lg"
           >
-            <span aria-hidden className={`w-1 shrink-0 ${RULE[t.variant ?? "info"]}`} />
+            <span
+              aria-hidden
+              className={`w-1 shrink-0 ${RULE[t.variant ?? "info"]}`}
+            />
             <div className="min-w-0 flex-1 px-3.5 py-3">
               <p className="text-[14px] font-semibold text-fg">{t.title}</p>
               {t.body && (
@@ -116,9 +134,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 </p>
               )}
               {t.txHash && (
-                <p className="tnum mt-1 text-[11.5px] text-fg-muted">
+                <a
+                  href={txUrl(t.txHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t.txHash}
+                  className="focus-ring tnum mt-1 inline-block rounded-sm text-[11.5px] text-fg-muted underline-offset-2 transition hover:text-accent hover:underline"
+                >
                   {`${t.txHash.slice(0, 10)}...${t.txHash.slice(-6)}`}
-                </p>
+                </a>
               )}
             </div>
             <button

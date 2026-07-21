@@ -50,6 +50,7 @@ import {
 import { PeaIcon } from "@/components/icons";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
+import { txUrl } from "@/lib/contracts";
 import { IS_API_MODE } from "@/lib/engineContext";
 import { fmtCompact, fmtInt, fmtUsd, shortAddr } from "@/lib/format";
 import { usePrices, useRoundHistory } from "@/lib/hooks/useGame";
@@ -352,7 +353,15 @@ function BuybackTxTable() {
                   <RelTime at={tx.at} />
                 </td>
                 <td className={`${TD} !h-12 tnum text-fg-body`}>
-                  {`${tx.hash.slice(0, 6)}...${tx.hash.slice(-4)}`}
+                  <a
+                    href={txUrl(tx.hash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={tx.hash}
+                    className="tnum text-fg-body underline-offset-2 transition hover:text-accent hover:underline focus-ring rounded-sm"
+                  >
+                    {`${tx.hash.slice(0, 6)}...${tx.hash.slice(-4)}`}
+                  </a>
                 </td>
                 <td className={`${TD} !h-12 text-right`}>
                   <ValueWithIcon icon="pea" value={tx.pea.toFixed(2)} />

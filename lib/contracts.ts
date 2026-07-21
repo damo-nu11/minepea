@@ -15,8 +15,7 @@ import type { Address } from "@/lib/types";
  * endpoint); unset/empty falls back to the public one.
  */
 export const RPC_URL =
-  process.env.NEXT_PUBLIC_RPC_URL ||
-  "https://rpc.mainnet.chain.robinhood.com/";
+  process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.mainnet.chain.robinhood.com/";
 
 /**
  * Robinhood Chain (Arbitrum Orbit L2) as a viem Chain — the ONE definition
@@ -28,7 +27,25 @@ export const CHAIN = defineChain({
   name: "Robinhood Chain",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: [RPC_URL] } },
+  blockExplorers: {
+    default: {
+      name: "Blockscout",
+      url: "https://robinhoodchain.blockscout.com",
+    },
+  },
 });
+
+/** Explorer link for a transaction hash. The app showed hashes as dead
+ * text before this existed — a user could see the hash but had nowhere to
+ * take it. */
+export function txUrl(hash: string): string {
+  return `${CHAIN.blockExplorers.default.url}/tx/${hash}`;
+}
+
+/** Explorer link for an address. */
+export function addressUrl(address: string): string {
+  return `${CHAIN.blockExplorers.default.url}/address/${address}`;
+}
 
 /** The deployed contracts */
 export const CONTRACTS = {
