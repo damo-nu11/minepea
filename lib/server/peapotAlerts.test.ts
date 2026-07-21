@@ -22,8 +22,6 @@ function round(over: Partial<SettledRoundLike> = {}): SettledRoundLike {
     roundId: 100,
     peapotAmount: "0",
     winningBlock: 0,
-    peaWinner: "0x1111111111111111111111111111111111111111",
-    winnerCount: 1,
     ...over,
   };
 }
@@ -60,23 +58,14 @@ describe("peapotHits", () => {
     expect(peapotHits([round({ peapotAmount: "not-a-number" })])).toEqual([]);
   });
 
-  it("carries the split case through instead of inventing a winner", () => {
-    const [hit] = peapotHits([
-      round({ peapotAmount: PEA(3), peaWinner: null, winnerCount: 12 }),
-    ]);
-    expect(hit.winner).toBeNull();
-    expect(hit.winnerCount).toBe(12);
+  it("never carries a winner: the peapot always splits across the tile", () => {
+    const [hit] = peapotHits([round({ peapotAmount: PEA(3) })]);
+    expect(Object.keys(hit).sort()).toEqual(["pea", "roundId", "tile"]);
   });
 });
 
 describe("peapotEmbed", () => {
-  const hit = {
-    roundId: 512,
-    pea: 30.921,
-    tile: 17,
-    winner: "0xAbCdEf0123456789012345678901234567890123",
-    winnerCount: 1,
-  };
+  const hit = { roundId: 512, pea: 30.921, tile: 17 };
 
   it("names the round and the tile", () => {
     const e = peapotEmbed(hit, 2.5, "2026-07-22T00:00:00.000Z");
@@ -86,8 +75,18 @@ describe("peapotEmbed", () => {
 
   it("prices the pot when a market price exists", () => {
     const e = peapotEmbed(hit, 2.5, "2026-07-22T00:00:00.000Z");
-    const value = e.fields.find((f) => f.name === "Value");
-    expect(value?.value).toBe("$77.30");
+    const value = e.fields.find((f) => f.name.includes("USD Value"));
+    expect(value?.value).toBe("~$77.30");
+  });
+
+  it("names no winner, because the peapot always splits", () => {
+    const e = peapotEmbed(hit, 2.5, "2026-07-22T00:00:00.000Z");
+    expect(JSON.stringify(e)).not.toMatch(/winner/i);
+  });
+
+  it("uses no em or en dashes in copy that reaches a channel", () => {
+    const e = peapotEmbed(hit, 2.5, "2026-07-22T00:00:00.000Z");
+    expect(JSON.stringify(e)).not.toMatch(/[—–]/);
   });
 
   it("omits the value entirely when there is no market price", () => {
@@ -95,30 +94,15 @@ describe("peapotEmbed", () => {
     // valuation the protocol cannot know.
     for (const price of [null, 0]) {
       const e = peapotEmbed(hit, price, "2026-07-22T00:00:00.000Z");
-      expect(e.fields.some((f) => f.name === "Value")).toBe(false);
+      expect(e.fields.some((f) => f.name.includes("USD Value"))).toBe(false);
       expect(JSON.stringify(e)).not.toContain("$0.00");
     }
-  });
-
-  it("says who won, or that it was split", () => {
-    const solo = peapotEmbed(hit, 1, "2026-07-22T00:00:00.000Z");
-    expect(solo.fields.find((f) => f.name === "Winner")?.value).toBe(
-      "0xAbCd...0123",
-    );
-    const split = peapotEmbed(
-      { ...hit, winner: null, winnerCount: 9 },
-      1,
-      "2026-07-22T00:00:00.000Z",
-    );
-    expect(split.fields.find((f) => f.name === "Winner")?.value).toBe(
-      "Split across 9 miners",
-    );
   });
 });
 
 describe("postToWebhook", () => {
   const embed = peapotEmbed(
-    { roundId: 1, pea: 1, tile: 1, winner: null, winnerCount: 2 },
+    { roundId: 1, pea: 1, tile: 1 },
     1,
     "2026-07-22T00:00:00.000Z",
   );

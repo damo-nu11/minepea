@@ -18,19 +18,20 @@
  * what the embed says. The route owns auth, the database and the network.
  */
 
-import { fmtToken, fromWei, shortAddr } from "@/lib/format";
-import type { Address } from "@/lib/types";
+import { fmtToken, fromWei } from "@/lib/format";
 
-/** The fields of a settled round this module needs. */
+/**
+ * The fields of a settled round this module needs.
+ *
+ * Deliberately no winner: the peapot always splits across the winning tile's
+ * miners (user 2026-07-22), so there is never a single recipient to name.
+ */
 export interface SettledRoundLike {
   roundId: number;
   /** Decimal wei string. "0" means the peapot did not drop this round. */
   peapotAmount: string;
   /** ZERO-INDEXED, as the backend reports it. */
   winningBlock: number;
-  /** null ⇒ the PEA reward was split across the tile. */
-  peaWinner: string | null;
-  winnerCount: number;
 }
 
 export interface PeapotHit {
@@ -39,8 +40,6 @@ export interface PeapotHit {
   pea: number;
   /** 1-indexed, as the site displays it. */
   tile: number;
-  winner: string | null;
-  winnerCount: number;
 }
 
 /**
@@ -64,8 +63,6 @@ export function peapotHits(rounds: SettledRoundLike[]): PeapotHit[] {
       // from 1 (see mappers.ts tileLabel). Announcing the raw index would
       // name the wrong tile.
       tile: r.winningBlock + 1,
-      winner: r.peaWinner,
-      winnerCount: r.winnerCount,
     });
   }
   return hits;
@@ -97,29 +94,23 @@ export function peapotEmbed(
   now: string,
 ): DiscordEmbed {
   const fields: DiscordEmbed["fields"] = [
-    { name: "PEA", value: fmtToken(hit.pea, 3), inline: true },
+    { name: "🫛 Total PEA", value: fmtToken(hit.pea, 3), inline: false },
   ];
   if (peaUsd !== null && peaUsd > 0) {
     fields.push({
-      name: "Value",
-      value: `$${(hit.pea * peaUsd).toLocaleString("en-US", {
+      name: "💵 USD Value",
+      value: `~$${(hit.pea * peaUsd).toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`,
-      inline: true,
+      inline: false,
     });
   }
-  fields.push({
-    name: "Winner",
-    value: hit.winner
-      ? shortAddr(hit.winner as Address)
-      : `Split across ${hit.winnerCount} miners`,
-    inline: true,
-  });
-
   return {
-    title: `PEAPOT — Round #${hit.roundId}`,
-    description: `Tile #${hit.tile} just cracked the peapot.`,
+    // Hyphen, not an em-dash: this is user-facing copy and the house rule
+    // applies to a Discord embed exactly as it does to a page.
+    title: `🫛 PEAPOT - Round #${hit.roundId}`,
+    description: `**Tile #${hit.tile}** just hit the peapot!`,
     color: ACCENT,
     fields,
     footer: { text: "minepea.com" },
@@ -133,8 +124,6 @@ export const TEST_HIT: PeapotHit = {
   roundId: 9999,
   pea: 30.921,
   tile: 17,
-  winner: "0x1111111111111111111111111111111111111111",
-  winnerCount: 1,
 };
 
 /** POST the embed to the channel webhook. Throws on a non-2xx. */
