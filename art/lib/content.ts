@@ -252,7 +252,7 @@ export const collectionCount = (id: CollectionId): number =>
 export const LINKS = {
   site: "https://minepea.com",
   x: "https://x.com/minepea_",
-  discord: "#",
+  discord: "https://discord.gg/MKSmTFKZW",
   terms: "https://minepea.com/terms",
   privacy: "https://minepea.com/privacy",
   brandKitZip: "/brand/pea-brand-kit.zip",

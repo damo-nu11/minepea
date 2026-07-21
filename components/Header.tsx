@@ -15,7 +15,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@/components/ConnectButton";
-import { DiscordIcon, EthIcon, GitHubIcon, PeaIcon, XIcon } from "@/components/icons";
+import {
+  DiscordIcon,
+  EthIcon,
+  GitHubIcon,
+  PeaIcon,
+  XIcon,
+} from "@/components/icons";
 import { PeaWordmark } from "@/components/PeaWordmark";
 import { usePrices } from "@/lib/hooks/useGame";
 
@@ -89,7 +95,11 @@ export function Header() {
     <header className="flex h-[68px] shrink-0 items-stretch justify-between bg-bg px-3 md:h-[80px] md:px-8">
       {/* Left: wordmark + nav */}
       <div className="flex min-w-0 items-stretch gap-3 md:gap-8 xl:gap-[72px]">
-        <Link href="/" className="flex items-center text-fg" aria-label="PEA home">
+        <Link
+          href="/"
+          className="flex items-center text-fg"
+          aria-label="PEA home"
+        >
           <PeaWordmark className="text-[25px] md:text-[32px]" />
         </Link>
         <nav className="hidden items-stretch gap-3 md:flex md:gap-5 xl:gap-10">
@@ -104,7 +114,9 @@ export function Header() {
                 href={link.href}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex items-center text-[13px] transition-colors md:text-[15px] ${
-                  active ? "font-bold text-fg" : "font-medium text-fg-muted hover:text-fg"
+                  active
+                    ? "font-bold text-fg"
+                    : "font-medium text-fg-muted hover:text-fg"
                 }`}
               >
                 <span className="relative">
@@ -145,10 +157,20 @@ export function Header() {
           />
         </span>
         <span className="flex items-center gap-1 text-fg-muted md:hidden xl:flex xl:gap-3">
-          <a href="#" aria-label="Discord" className="p-1.5 transition-colors hover:text-fg">
+          <a
+            href="https://discord.gg/MKSmTFKZW"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Discord"
+            className="p-1.5 transition-colors hover:text-fg"
+          >
             <DiscordIcon size={19} />
           </a>
-          <a href="#" aria-label="GitHub" className="p-1.5 transition-colors hover:text-fg">
+          <a
+            href="#"
+            aria-label="GitHub"
+            className="p-1.5 transition-colors hover:text-fg"
+          >
             <GitHubIcon size={19} />
           </a>
           <a
