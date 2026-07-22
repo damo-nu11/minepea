@@ -195,12 +195,18 @@ function RoundsTable({ rows }: { rows: RoundSummaryVM[] }) {
   );
 }
 
-function PeapotsTable({ rows }: { rows: RoundSummaryVM[] }) {
+function PeapotsTable({
+  rows,
+  loading = false,
+}: {
+  rows: RoundSummaryVM[];
+  loading?: boolean;
+}) {
   const pg = usePage(rows);
   if (rows.length === 0) {
     return (
       <p className="py-10 text-center text-[15px] text-fg-muted">
-        No peapots have fired yet.
+        {loading ? "Loading peapot history..." : "No peapots have fired yet."}
       </p>
     );
   }
@@ -945,6 +951,8 @@ function MiningTab() {
         : rows.filter((r) => r.motherlodeFormatted !== null),
     [rows, livePeapots.data],
   );
+  // Only the live path can be mid-scan; the mock filter is synchronous.
+  const peapotsLoading = IS_API_MODE && livePeapots.status === "loading";
 
   // LIVE stat cards (audit: must agree with the tables beside them). The
   // peapot hit rate is the protocol's DESIGN odds (1-in-333), not the
@@ -986,7 +994,7 @@ function MiningTab() {
         </ChartCard>
       </div>
       <ChartCard title="Peapots" subtitle="Rounds where the peapot fired">
-        <PeapotsTable rows={peapots} />
+        <PeapotsTable rows={peapots} loading={peapotsLoading} />
       </ChartCard>
     </div>
   );
@@ -1196,23 +1204,25 @@ export function ExplorePage() {
         ))}
       </div>
 
-      <div
-        id="analytics-panel"
-        role="tabpanel"
-        aria-labelledby={`tab-${tab}`}
-        tabIndex={0}
-        className="mt-6 flex flex-col gap-4"
-      >
-        {tab === "mining" && <MiningTab />}
-        {tab === "buybacks" &&
-          (IS_API_MODE ? <LiveBuybacksTab /> : <BuybacksTab />)}
-        {tab === "token" && (IS_API_MODE ? <LiveTokenTab /> : <TokenTab />)}
-        {tab === "staking" &&
-          (IS_API_MODE ? <LiveStakingTab /> : <StakingTab />)}
-        {tab === "miners" && (IS_API_MODE ? <LiveMinersTab /> : <MinersTab />)}
+      <div className="mb-20 mt-6 flex flex-col gap-4">
+        <div
+          id="analytics-panel"
+          role="tabpanel"
+          aria-labelledby={`tab-${tab}`}
+          tabIndex={0}
+          className="flex flex-col gap-4"
+        >
+          {tab === "mining" && <MiningTab />}
+          {tab === "buybacks" &&
+            (IS_API_MODE ? <LiveBuybacksTab /> : <BuybacksTab />)}
+          {tab === "token" && (IS_API_MODE ? <LiveTokenTab /> : <TokenTab />)}
+          {tab === "staking" &&
+            (IS_API_MODE ? <LiveStakingTab /> : <StakingTab />)}
+          {tab === "miners" &&
+            (IS_API_MODE ? <LiveMinersTab /> : <MinersTab />)}
+        </div>
+        <ContractsSection />
       </div>
-
-      <ContractsSection />
     </WideContainer>
   );
 }
