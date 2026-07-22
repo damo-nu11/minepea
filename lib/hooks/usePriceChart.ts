@@ -66,11 +66,14 @@ export function supplyView(
     circulating,
     marketCapUsd:
       price !== null && circulating !== null ? price * circulating : null,
-    // Prefer GeckoTerminal's own FDV so the number cross-checks against what
-    // an explorer shows; fall back to the same arithmetic when it is absent.
-    fdvUsd:
-      market?.fdvUsd ??
-      (price !== null && totalSupply !== null ? price * totalSupply : null),
+    // BOTH figures come from the same price and the same supply reading.
+    // Preferring GeckoTerminal's own fdvUsd looked like a useful cross-check
+    // against an explorer, but it is their number from their snapshot while
+    // market cap is ours from a live quote. Two prices for one pair of
+    // figures broke the one relationship that must always hold: circulating
+    // is a subset of total, so market cap can never exceed FDV. It did, on
+    // screen, whenever the quotes drifted apart.
+    fdvUsd: price !== null && totalSupply !== null ? price * totalSupply : null,
   };
 }
 

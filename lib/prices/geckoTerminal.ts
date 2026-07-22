@@ -38,22 +38,28 @@ export const CHART_TOKEN_ADDRESS: string =
   process.env.NEXT_PUBLIC_PEA_CHART_TOKEN ?? CONTRACTS.peaToken;
 
 /**
- * PEA held back from circulation: the team and treasury allocation.
+ * PEA held back from circulation: the team and treasury allocation, locked
+ * 2026-07-22 in a Sablier vesting stream.
  *
- * >>> SET THIS WHEN THE LOCK LANDS. <<<
+ *   stream https://app.sablier.com/vesting/stream/LK3-4663-1
+ *   tx     https://robinhoodchain.blockscout.com/tx/0xfce33a0a5649f2e44775dcd32d3377a1b8cdfd06e9311ee511b1bf386620aad9
  *
  * Circulating supply is derived as onchain total supply minus this, so the
  * figure the site quotes follows the lock instead of being asserted
- * separately. It is 0 today because nothing is locked yet, which is why
- * circulating and total currently read the same and market cap equals FDV.
- * Once the ~75% team and treasury lock is done, put the locked amount here and
- * market cap separates from FDV on its own.
+ * separately. It was 75% of supply on the day it was locked; mining keeps
+ * minting, so the PERCENTAGE falls from here while this amount does not.
+ *
+ * >>> A SABLIER STREAM VESTS. <<< This is the amount locked at t=0, not a
+ * permanent figure. As the stream releases, the true locked balance drops and
+ * this constant will overstate it, which overstates the lock and understates
+ * circulating supply. Revisit it against the stream (or read the stream
+ * balance onchain) rather than leaving it to drift.
  *
  * Deliberately NOT the 3,000,000 hard cap: most of that supply has not been
  * mined yet, so pricing it today would overstate the token's value by orders
  * of magnitude (user 2026-07-21).
  */
-export const LOCKED_SUPPLY_PEA = 0;
+export const LOCKED_SUPPLY_PEA = 7502;
 
 /** One point of price history. Epoch ms + USD, the shape LineChart consumes. */
 export interface PricePointWire {
