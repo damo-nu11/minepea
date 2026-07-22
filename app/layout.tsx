@@ -37,6 +37,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    // The official account (matches Header + legal copy). Real shares are then
+    // attributed to PEA; the validator's mock preview still shows whoever is
+    // logged into that browser, which is expected.
+    site: "@minepea_",
+    creator: "@minepea_",
     title: "PEA",
     description: TAGLINE,
     images: ["/og-banner.png"],
