@@ -61,6 +61,34 @@ export function fmtInt(n: number): string {
   return Math.floor(n).toLocaleString("en-US");
 }
 
+/**
+ * Compact to a fixed number of SIGNIFICANT figures: 243.8K, 1.183M, 12.35M.
+ *
+ * Fixed decimals misread across magnitudes — at 2dp, 1,183,000 flattens to a
+ * blunt "1.18M" while 243,800 gains a falsely precise "243.80K". Scaling the
+ * decimals to the mantissa holds the information density steady at every size,
+ * which is what a headline stat rail wants. Rounding that carries the mantissa
+ * to 1000 promotes the unit, so 999,999 reads "1.000M", never "1000.0K".
+ */
+export function fmtCompactSig(n: number, sig = 4): string {
+  if (!Number.isFinite(n)) return "0";
+  if (n === 0) return "0";
+  const units = ["", "K", "M", "B", "T"];
+  const abs = Math.abs(n);
+  let tier = Math.min(Math.floor(Math.log10(abs) / 3), units.length - 1);
+  tier = Math.max(tier, 0);
+  let m = n / 1000 ** tier;
+  const dpFor = (v: number) =>
+    Math.max(0, sig - Math.max(1, Math.floor(Math.log10(Math.abs(v))) + 1));
+  let dp = dpFor(m);
+  if (Math.abs(Number(m.toFixed(dp))) >= 1000 && tier < units.length - 1) {
+    tier += 1;
+    m = n / 1000 ** tier;
+    dp = dpFor(m);
+  }
+  return `${m.toFixed(dp)}${units[tier]}`;
+}
+
 /** Compact: 1234 → "1.23K", 23551423 → "23.55M". */
 export function fmtCompact(n: number): string {
   if (!Number.isFinite(n)) return "0";

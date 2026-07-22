@@ -16,6 +16,7 @@ describe("fmtTokenSmart", () => {
 });
 import {
   fmtCompact,
+  fmtCompactSig,
   fmtTokenFloor,
   fmtCountdown,
   fmtInt,
@@ -91,6 +92,25 @@ describe("fmtCompact", () => {
     expect(fmtCompact(23551423)).toBe("23.55M");
     expect(fmtCompact(2500000000)).toBe("2.5B");
     expect(fmtCompact(42)).toBe("42");
+  });
+});
+
+describe("fmtCompactSig", () => {
+  it("holds four significant figures across magnitudes", () => {
+    expect(fmtCompactSig(243_800)).toBe("243.8K");
+    expect(fmtCompactSig(1_183_000)).toBe("1.183M");
+    expect(fmtCompactSig(12_345_678)).toBe("12.35M");
+    expect(fmtCompactSig(1_000_000_000)).toBe("1.000B");
+  });
+  it("promotes the unit when rounding carries the mantissa to 1000", () => {
+    // Naive fixed-decimal compaction renders this "1000.0K".
+    expect(fmtCompactSig(999_999)).toBe("1.000M");
+    expect(fmtCompactSig(999_499)).toBe("999.5K");
+  });
+  it("handles zero, negatives and non-finite input", () => {
+    expect(fmtCompactSig(0)).toBe("0");
+    expect(fmtCompactSig(-243_800)).toBe("-243.8K");
+    expect(fmtCompactSig(Number.NaN)).toBe("0");
   });
 });
 

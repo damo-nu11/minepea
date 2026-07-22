@@ -13,7 +13,8 @@ import {
   EthIcon,
   PeaIcon,
 } from "@/components/icons";
-import { fmtCompact, fmtInt, fmtUsd } from "@/lib/format";
+import { Tooltip } from "@/components/Tooltip";
+import { fmtCompact, fmtCompactSig, fmtInt, fmtUsd } from "@/lib/format";
 import type { RoundSummaryVM } from "@/lib/types";
 
 // Token-pure series palette (chart kit takes CSS vars).
@@ -27,12 +28,14 @@ export const C = {
 export const usdCompact = (v: number) => `$${fmtCompact(v)}`;
 export const peaCompact = (v: number) => fmtCompact(v);
 /** USD that stays readable at both ends: compact above 10k, exact below.
- * `usdCompact` alone renders a $0.02 pool as "$0.0". */
+ * `usdCompact` alone renders a $0.02 pool as "$0.0". Compacts to four
+ * SIGNIFICANT figures ($243.8K, $1.183M) rather than fixed decimals — this is
+ * the headline stat rail, where every row is a different magnitude. */
 export const usdAuto = (v: number | null | undefined) =>
   v === null || v === undefined
     ? "—"
     : Math.abs(v) >= 10_000
-      ? `$${fmtCompact(v)}`
+      ? `$${fmtCompactSig(v)}`
       : fmtUsd(v);
 export const pct1 = (v: number) => `${v.toFixed(1)}%`;
 
@@ -94,14 +97,25 @@ export function HeroStat({
   label,
   value,
   sub,
+  hint,
 }: {
   label: string;
   value: string;
   sub?: string;
+  /** Hover detail. Dashed-underlines the label, the site's tooltip signal. */
+  hint?: string;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-line-slate/60 py-3 last:border-b-0">
-      <span className="micro-label">{label}</span>
+      {hint ? (
+        <Tooltip content={hint}>
+          <span className="micro-label dashed-underline transition-colors hover:text-fg">
+            {label}
+          </span>
+        </Tooltip>
+      ) : (
+        <span className="micro-label">{label}</span>
+      )}
       <span className="flex items-baseline gap-2">
         <span className="tnum text-[17px] font-bold text-fg">{value}</span>
         {sub && <span className="tnum text-[12px] text-fg-muted">{sub}</span>}

@@ -75,6 +75,10 @@ export function LiveHero() {
   const prices = usePrices();
   const peaUsd =
     prices.data && prices.data.peaUsd > 0 ? prices.data.peaUsd : null;
+  // REAL ETH spot (Coinbase, 30s poll via lib/livePrices) overlaid on the
+  // store price. Prices the two deployed rows below.
+  const ethUsd =
+    prices.data && prices.data.ethUsd > 0 ? prices.data.ethUsd : null;
 
   const volume = seriesPoints(mining.data, "deployVolume", "total");
   // Same GeckoTerminal payload the chart is drawn from (see usePriceChart).
@@ -109,13 +113,29 @@ export function LiveHero() {
         />
         <HeroStat label="Liquidity" value={usdAuto(m?.liquidityUsd)} />
         <HeroStat label="24h Trading Volume" value={usdAuto(m?.volume24hUsd)} />
+        {/* USD, not ETH (user 2026-07-22): every other row in this rail is
+            priced in dollars, and "Ξ 1016.6112" is 8 digits nobody reads at a
+            glance. The ETH figure is real data, so it stays on hover rather
+            than being dropped. Both fall back to "—" until the ETH price
+            lands: the empty snapshot carries ethUsd 0, which would otherwise
+            render a confident $0.00 on the rail's largest number. */}
         <HeroStat
           label="24h Deployed"
-          value={last24h === null ? "—" : `Ξ ${eth4(last24h)}`}
+          value={
+            last24h === null || ethUsd === null
+              ? "—"
+              : usdAuto(last24h * ethUsd)
+          }
+          hint={last24h === null ? undefined : `Ξ ${eth4(last24h)} deployed`}
         />
         <HeroStat
           label="All-Time Deployed"
-          value={allTime === null ? "—" : `Ξ ${eth4(allTime)}`}
+          value={
+            allTime === null || ethUsd === null
+              ? "—"
+              : usdAuto(allTime * ethUsd)
+          }
+          hint={allTime === null ? undefined : `Ξ ${eth4(allTime)} deployed`}
         />
       </div>
       {/* PEA/USD price chart, real GeckoTerminal OHLCV via /api/price-chart.

@@ -295,13 +295,12 @@ function Hero() {
         <HeroStat label="Max Supply" value={fmtInt(a.maxSupplyPea)} />
         <HeroStat label="Liquidity" value={usdAuto(m?.liquidityUsd)} />
         <HeroStat label="24h Trading Volume" value={usdAuto(m?.volume24hUsd)} />
-        <HeroStat
-          label="24h Deployed Volume"
-          value={usdCompact(a.volume24hUsd)}
-        />
+        {/* usdAuto, matching the rows above and the live rail — usdCompact
+            here left two rows at fixed decimals inside a 4-sig-fig rail. */}
+        <HeroStat label="24h Deployed Volume" value={usdAuto(a.volume24hUsd)} />
         <HeroStat
           label="All-Time Deployed"
-          value={usdCompact(a.allTimeDeployedUsd)}
+          value={usdAuto(a.allTimeDeployedUsd)}
         />
       </div>
       {/* No simulated fallback: with no market the designed empty state is
