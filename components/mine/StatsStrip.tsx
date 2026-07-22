@@ -58,16 +58,25 @@ function Stat({
       </span>
       {/* Deliberate local override of `micro-label` (11px/300): the strip runs
           ~25% tighter than the global caption scale (user 2026-07-15), so the
-          shared utility stays put for the rest of the site. */}
-      <span className="text-[9px] font-light uppercase leading-none tracking-[0.08em] text-fg-muted">
+          shared utility stays put for the rest of the site.
+          Fixed height because the two states are different sizes: the row
+          would otherwise grow on hover and nudge everything under it. */}
+      <span className="flex h-3.5 items-center justify-center text-[9px] font-light uppercase leading-none tracking-[0.08em] text-fg-muted">
         {hoverCaption ? (
           <>
             <span className="group-hover:hidden group-focus-within:hidden">
               {caption}
             </span>
+            {/* The revealed value is DATA, not a label, so it drops the
+                uppercase/letterspaced label treatment and steps up a size.
+                Colour and weight sit deliberately between the two extremes
+                (user 2026-07-22): fg-body is the token between caption-muted
+                and white, and medium between light and semibold. White at
+                semibold read as shouting next to the values above it.
+                tnum stops the digits shifting as the peapot ticks. */}
             <span
               aria-hidden
-              className="hidden group-hover:inline group-focus-within:inline"
+              className="tnum hidden text-[11px] font-medium normal-case leading-none tracking-normal text-fg-body group-hover:inline group-focus-within:inline"
             >
               {hoverCaption}
             </span>
