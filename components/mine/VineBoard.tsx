@@ -822,7 +822,17 @@ export function VineBoard({
     <div className="w-full select-none">
       <div
         ref={surfaceRef}
-        className={`relative mx-auto w-full touch-none ${hovering ? "cursor-pointer" : ""}`}
+        // Stable test hook. The board test used to select this element by its
+        // `.touch-none` styling class, so a CSS change broke an unrelated test.
+        data-board-surface=""
+        // pan-y, NOT none. `touch-none` disabled every browser touch gesture
+        // over the board, so on a phone the page could not be scrolled with a
+        // finger anywhere on the pentagon: you had to find the strip above or
+        // below it. pan-y hands vertical swipes back to the browser while
+        // horizontal drags still reach the drag-paint handlers below, and a
+        // scroll that starts on a tile fires pointercancel, which endDrag
+        // already handles.
+        className={`relative mx-auto w-full touch-pan-y ${hovering ? "cursor-pointer" : ""}`}
         style={{
           aspectRatio: "1 / 1",
           maxWidth: "calc(100dvh - 160px)",

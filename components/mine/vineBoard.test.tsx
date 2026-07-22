@@ -168,9 +168,9 @@ describe("VineBoard", () => {
     expect(win).not.toBeNull();
     expect(Number(win.getAttribute("opacity"))).toBeGreaterThan(0.5);
     // All 25 faces still carry their material, the winner included.
-    expect(
-      document.querySelectorAll("rect[fill^='url(#vn-tg']"),
-    ).toHaveLength(25);
+    expect(document.querySelectorAll("rect[fill^='url(#vn-tg']")).toHaveLength(
+      25,
+    );
     expect(document.querySelectorAll("rect[fill^='url(#vn-ao']")).toHaveLength(
       25,
     );
@@ -459,7 +459,9 @@ describe("VineBoard", () => {
         onToggle={onToggle}
       />,
     );
-    const surface = document.querySelector(".touch-none") as HTMLElement;
+    const surface = document.querySelector(
+      "[data-board-surface]",
+    ) as HTMLElement;
     vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
       left: 0,
       top: 0,

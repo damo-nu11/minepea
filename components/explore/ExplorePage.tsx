@@ -53,12 +53,8 @@ import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
 import { addressUrl, CONTRACTS, txUrl } from "@/lib/contracts";
-import { useAnalyticsTab } from "@/lib/api/analyticsLive";
 import { IS_API_MODE } from "@/lib/engineContext";
-import {
-  type PeapotSeriesPoint,
-  usePeapotRounds,
-} from "@/lib/hooks/usePeapotRounds";
+import { usePeapotRounds } from "@/lib/hooks/usePeapotRounds";
 import { fmtCompact, fmtInt, fmtUsd, shortAddr } from "@/lib/format";
 import { usePrices, useRoundHistory } from "@/lib/hooks/useGame";
 import {
@@ -200,58 +196,69 @@ function RoundsTable({ rows }: { rows: RoundSummaryVM[] }) {
 }
 
 function PeapotsTable({ rows }: { rows: RoundSummaryVM[] }) {
+  const pg = usePage(rows);
   if (rows.length === 0) {
     return (
       <p className="py-10 text-center text-[15px] text-fg-muted">
-        No peapots hit in the recent window.
+        No peapots have fired yet.
       </p>
     );
   }
   return (
-    <TableScroller label="Peapot hits table">
-      <table className="w-full min-w-[640px] border-collapse text-left">
-        <caption className="sr-only">Rounds where the peapot dropped</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH}>
-              Round
-            </th>
-            <th scope="col" className={TH}>
-              Tile
-            </th>
-            <th scope="col" className={TH}>
-              Winner
-            </th>
-            <th scope="col" className={`${TH} text-right`}>
-              Peapot
-            </th>
-            <th scope="col" className={`${TH} text-right`}>
-              Time
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.roundId}>
-              <td className={`${TD} tnum`}>{r.roundIdFormatted}</td>
-              <td className={`${TD} tnum`}>{r.tileLabel}</td>
-              <td className={TD}>
-                <WinnerCell row={r} />
-              </td>
-              <td className={`${TD} text-right`}>
-                <ValueWithIcon
-                  icon="pea"
-                  value={r.motherlodeFormatted ?? "—"}
-                />
-              </td>
-              <td className={`${TD} text-right`}>
-                <RelTime at={r.settledAt} />
-              </td>
+    <div>
+      <TableScroller label="Peapot hits table">
+        <table className="w-full min-w-[640px] border-collapse text-left">
+          <caption className="sr-only">Rounds where the peapot fired</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH}>
+                Round
+              </th>
+              <th scope="col" className={TH}>
+                Tile
+              </th>
+              <th scope="col" className={TH}>
+                Winner
+              </th>
+              <th scope="col" className={`${TH} text-right`}>
+                Peapot
+              </th>
+              <th scope="col" className={`${TH} text-right`}>
+                Time
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableScroller>
+          </thead>
+          <tbody>
+            {pg.slice.map((r) => (
+              <tr key={r.roundId}>
+                <td className={`${TD} tnum`}>{r.roundIdFormatted}</td>
+                <td className={`${TD} tnum`}>{r.tileLabel}</td>
+                <td className={TD}>
+                  <WinnerCell row={r} />
+                </td>
+                <td className={`${TD} text-right`}>
+                  <ValueWithIcon
+                    icon="pea"
+                    value={r.motherlodeFormatted ?? "—"}
+                  />
+                </td>
+                <td className={`${TD} text-right`}>
+                  <RelTime at={r.settledAt} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroller>
+      <Pager
+        page={pg.page}
+        pages={pg.pages}
+        start={pg.start}
+        size={pg.size}
+        total={pg.total}
+        onPage={pg.setPage}
+      />
+    </div>
   );
 }
 
@@ -926,17 +933,11 @@ function MiningTab() {
   const history = useRoundHistory();
   const rows = useMemo(() => history.data ?? [], [history.data]);
 
-  // Peapots come from the same series the chart draws, NOT from the round
-  // history. History is capped at 120 rounds, which at 1-in-333 holds about a
-  // third of one expected hit: the table showed one peapot beside a chart
-  // showing five. Mock mode keeps the history filter because the demo engine
-  // hits often enough for it to work.
-  const miningEnv = useAnalyticsTab("mining");
-  const peapotSeries = IS_API_MODE
-    ? ((miningEnv.data?.series?.peapot?.points ??
-        []) as unknown as PeapotSeriesPoint[])
-    : undefined;
-  const livePeapots = usePeapotRounds(peapotSeries);
+  // Peapots come from a full server-side scan of settled rounds, NOT from the
+  // round history (capped at 120) or the analytics series (a ~500-round
+  // window). Both of those silently omitted older hits. Mock mode keeps the
+  // history filter because the demo engine hits often enough for it to work.
+  const livePeapots = usePeapotRounds();
   const peapots = useMemo(
     () =>
       IS_API_MODE
@@ -984,8 +985,8 @@ function MiningTab() {
           <RoundsTable rows={rows} />
         </ChartCard>
       </div>
-      <ChartCard title="Peapots" subtitle="Rounds where the peapot dropped">
-        <PeapotsTable rows={peapots.slice(0, 25)} />
+      <ChartCard title="Peapots" subtitle="Rounds where the peapot fired">
+        <PeapotsTable rows={peapots} />
       </ChartCard>
     </div>
   );
@@ -1200,7 +1201,7 @@ export function ExplorePage() {
         role="tabpanel"
         aria-labelledby={`tab-${tab}`}
         tabIndex={0}
-        className="mb-20 mt-6"
+        className="mt-6 flex flex-col gap-4"
       >
         {tab === "mining" && <MiningTab />}
         {tab === "buybacks" &&
@@ -1211,9 +1212,7 @@ export function ExplorePage() {
         {tab === "miners" && (IS_API_MODE ? <LiveMinersTab /> : <MinersTab />)}
       </div>
 
-      <div className="mb-20">
-        <ContractsSection />
-      </div>
+      <ContractsSection />
     </WideContainer>
   );
 }
