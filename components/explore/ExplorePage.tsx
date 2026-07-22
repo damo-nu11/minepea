@@ -53,7 +53,12 @@ import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
 import { addressUrl, CONTRACTS, txUrl } from "@/lib/contracts";
+import { useAnalyticsTab } from "@/lib/api/analyticsLive";
 import { IS_API_MODE } from "@/lib/engineContext";
+import {
+  type PeapotSeriesPoint,
+  usePeapotRounds,
+} from "@/lib/hooks/usePeapotRounds";
 import { fmtCompact, fmtInt, fmtUsd, shortAddr } from "@/lib/format";
 import { usePrices, useRoundHistory } from "@/lib/hooks/useGame";
 import {
@@ -920,9 +925,24 @@ const MiningCharts = memo(function MiningCharts() {
 function MiningTab() {
   const history = useRoundHistory();
   const rows = useMemo(() => history.data ?? [], [history.data]);
+
+  // Peapots come from the same series the chart draws, NOT from the round
+  // history. History is capped at 120 rounds, which at 1-in-333 holds about a
+  // third of one expected hit: the table showed one peapot beside a chart
+  // showing five. Mock mode keeps the history filter because the demo engine
+  // hits often enough for it to work.
+  const miningEnv = useAnalyticsTab("mining");
+  const peapotSeries = IS_API_MODE
+    ? ((miningEnv.data?.series?.peapot?.points ??
+        []) as unknown as PeapotSeriesPoint[])
+    : undefined;
+  const livePeapots = usePeapotRounds(peapotSeries);
   const peapots = useMemo(
-    () => rows.filter((r) => r.motherlodeFormatted !== null),
-    [rows],
+    () =>
+      IS_API_MODE
+        ? (livePeapots.data ?? [])
+        : rows.filter((r) => r.motherlodeFormatted !== null),
+    [rows, livePeapots.data],
   );
 
   // LIVE stat cards (audit: must agree with the tables beside them). The

@@ -10,7 +10,7 @@
  * peapot-pot-over-rounds and the harvesting-APR 1D/7D/30D lines.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { BarChart } from "@/components/charts/BarChart";
 import { LineChart } from "@/components/charts/LineChart";
 import { PriceChart } from "@/components/explore/PriceChart";
@@ -141,8 +141,17 @@ export const LiveMiningCharts = memo(function LiveMiningCharts() {
   // client cache dedupes this with the Token tab's own fetch.
   const token = useAnalyticsTab("token");
 
-  const peapot = (env?.series?.peapot?.points ??
-    []) as unknown as PeapotPoint[];
+  // Hundreds of one-round bars merge into a solid silhouette, which is what
+  // the chart looked like: a filled triangle rather than a sawtooth. Sample
+  // to ~90 bars so each is individually visible, and never drop a HIT, since
+  // the hits are the whole point of the chart.
+  const peapot = useMemo(() => {
+    const raw = (env?.series?.peapot?.points ?? []) as unknown as PeapotPoint[];
+    const MAX_BARS = 90;
+    if (raw.length <= MAX_BARS) return raw;
+    const step = Math.ceil(raw.length / MAX_BARS);
+    return raw.filter((p, i) => p.hit || i % step === 0);
+  }, [env]);
   const apr1d = seriesPointsOpt(token.data, "roasting", "apr1d");
   const apr7d = seriesPointsOpt(token.data, "roasting", "apr7d");
   const apr30d = seriesPointsOpt(token.data, "roasting", "apr30d");

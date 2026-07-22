@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { useEngineStore } from "@/lib/engineContext";
 import { WalletIcon } from "@/components/icons";
+import { ClaimRewards } from "@/components/mine/ClaimRewards";
 import { LastRoundBar } from "@/components/mine/LastRoundBar";
 import { VineBoard } from "@/components/mine/VineBoard";
 import { MinersFeed } from "@/components/mine/MinersFeed";
@@ -516,6 +517,10 @@ export function MinePage() {
           >
             {ctaLabel}
           </button>
+
+          {/* Claimable rewards. Renders nothing unless there is something to
+              claim, so the common path is unchanged. */}
+          <ClaimRewards />
 
           {/* Active AutoMiner config: progress + stop/refund control. */}
           {automine.data?.active && (

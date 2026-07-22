@@ -218,7 +218,13 @@ export function MinersFeed() {
               : max,
           undefined,
         );
-  const items = (feed.data ?? []).filter((m) => m.roundId === shownRoundId);
+  // Largest stake first (user 2026-07-22). The feed arrives in the order
+  // deploys landed, which tells a reader nothing; ranking by size makes the
+  // panel scannable and puts the miners with the most at stake at the top.
+  const items = (feed.data ?? [])
+    .filter((m) => m.roundId === shownRoundId)
+    .slice()
+    .sort((a, b) => b.eth - a.eth);
   const shared = useProfiles(items.map((m) => m.address.toLowerCase()));
 
   // The settled summary of the shown round drives the popover AND the
