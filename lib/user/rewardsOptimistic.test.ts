@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCheckpointed,
+  checkpointHasReward,
   zeroClaimedEth,
   zeroClaimedPea,
   type RewardsVM,
@@ -60,5 +61,24 @@ describe("optimistic rewards updates (SSE direct-apply)", () => {
     const vm = applyCheckpointed(BASE, "0x38d7ea4c68000", "0x0"); // 0.001 ETH hex
     expect(vm.pendingEthWei).toBe("2476684000000000");
     expect(vm.unrefinedPeaWei).toBe(BASE.unrefinedPeaWei);
+  });
+});
+
+describe("checkpointHasReward", () => {
+  // A checkpoint with nothing on either leg used to announce "rewards are now
+  // claimable" to miners who had won nothing, once per round.
+  it("is false when both legs are zero, in either dialect", () => {
+    expect(checkpointHasReward("0", "0")).toBe(false);
+    expect(checkpointHasReward("0x0", "0x0")).toBe(false);
+  });
+  it("is true when either leg carries an amount", () => {
+    expect(checkpointHasReward("1", "0")).toBe(true);
+    expect(checkpointHasReward("0", E18.toString())).toBe(true);
+    expect(checkpointHasReward("0x38d7ea4c68000", "0x0")).toBe(true);
+  });
+  it("treats missing or malformed amounts as nothing to claim", () => {
+    // Never invent a reward out of a payload we could not read.
+    expect(checkpointHasReward(undefined, null)).toBe(false);
+    expect(checkpointHasReward("", "not-a-number")).toBe(false);
   });
 });

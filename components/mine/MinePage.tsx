@@ -518,8 +518,12 @@ export function MinePage() {
             {ctaLabel}
           </button>
 
-          {/* Claimable rewards. Renders nothing unless there is something to
-              claim, so the common path is unchanged. */}
+          {/* Claimable rewards, directly under the CTA (user 2026-07-22).
+              Renders nothing unless there is something to claim, so the
+              common path is unchanged. Anyone scrolled far enough to deploy
+              is already looking at this spot; what used to hide it was the
+              toast sitting over the bottom of the screen, fixed in Toast.tsx
+              rather than by moving this. */}
           <ClaimRewards />
 
           {/* Active AutoMiner config: progress + stop/refund control. */}

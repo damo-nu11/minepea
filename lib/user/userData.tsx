@@ -252,6 +252,23 @@ export function zeroClaimedPea(vm: RewardsVM): RewardsVM {
 }
 
 /** checkpointed moves a round's on-chain rewards into the pending totals. */
+/**
+ * Does a `checkpointed` event actually leave the user something to claim?
+ *
+ * Checkpointing is bookkeeping the backend runs for participants whether they
+ * won or not, so the event's existence promises nothing. Announcing it
+ * unconditionally told every LOSING miner that their "rewards are now
+ * claimable" — once per round, at 60s rounds — and sent them hunting through
+ * a profile that correctly read zero. The amounts ride along in the payload;
+ * trust those, never the arrival of the event.
+ */
+export function checkpointHasReward(
+  ethRewardWei: string | null | undefined,
+  peaRewardWei: string | null | undefined,
+): boolean {
+  return toBig(ethRewardWei) > 0n || toBig(peaRewardWei) > 0n;
+}
+
 export function applyCheckpointed(
   vm: RewardsVM,
   ethRewardWei: string,
@@ -593,11 +610,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     on<{ roundId: string; ethReward: string; peaReward: string }>(
       "checkpointed",
       (p) => {
-        toast.push({
-          title: "Rewards checkpointed",
-          body: `Round ${p.roundId} rewards are now claimable.`,
-          variant: "info",
-        });
+        // Only announce a reward that exists. A checkpoint with zero on both
+        // legs is bookkeeping, and saying otherwise is a promise we cannot keep.
+        if (checkpointHasReward(p.ethReward, p.peaReward)) {
+          toast.push({
+            title: "Rewards checkpointed",
+            body: `Round ${p.roundId} rewards are now claimable.`,
+            variant: "info",
+          });
+        }
         // Direct-apply the payload (instant UI); the refetch trues up.
         setRewards((prev) =>
           prev.data

@@ -115,7 +115,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         aria-live="polite"
         role="status"
-        className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[320px] max-w-[calc(100vw-32px)] flex-col gap-2"
+        // Below md the BottomNav is fixed at bottom-0 (h-16 + safe area) and
+        // this sits above it at z-60, so every toast covered the nav and the
+        // bottom of the page with it. Clears the nav with the same offset the
+        // Footer already uses for the same reason.
+        className="pointer-events-none fixed bottom-[calc(80px+env(safe-area-inset-bottom))] right-4 z-[60] flex w-[320px] max-w-[calc(100vw-32px)] flex-col gap-2 md:bottom-4"
       >
         {toasts.map((t) => (
           <div
