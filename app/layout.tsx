@@ -16,22 +16,29 @@ const unbounded = Unbounded({
   subsets: ["latin"],
 });
 
+const TAGLINE = "Mine. Earn. Burn.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://minepea.com"),
+  // The WWW host, not the apex: minepea.com 308-redirects to www, and a share
+  // card's image URL that redirects is dropped by several crawlers rather than
+  // followed. metadataBase resolves every relative URL below, so getting this
+  // wrong breaks the preview everywhere at once.
+  metadataBase: new URL("https://www.minepea.com"),
   title: "PEA",
-  description: "A digital store of value. Mine and stake PEA.",
-  // Social share card (WhatsApp/Discord/X link previews). The banner
-  // lives at public/og-banner.png; without it crawlers fall back to
-  // text-only previews.
+  description: TAGLINE,
+  // Social share card (WhatsApp/Discord/X link previews). The 1200x630 banner
+  // in public/ is the standard OG size, so the card is the large variant.
   openGraph: {
     title: "PEA",
-    description: "A digital store of value. Mine and stake PEA.",
-    url: "https://minepea.com",
+    description: TAGLINE,
+    url: "https://www.minepea.com",
     siteName: "PEA",
-    images: [{ url: "/og-banner.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-banner.png", width: 1200, height: 630, alt: "PEA" }],
   },
   twitter: {
     card: "summary_large_image",
+    title: "PEA",
+    description: TAGLINE,
     images: ["/og-banner.png"],
   },
 };

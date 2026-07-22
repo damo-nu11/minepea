@@ -43,7 +43,10 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * Vercel while browsers were fine. Browser calls never send it and never
  * needed it. Absent locally, where the header is simply omitted.
  */
-const FRONTEND_KEY = process.env.MINEPEA_API_KEY;
+const FRONTEND_KEY = process.env.MINEPEA_API_KEY?.trim();
+/** Untrimmed length, so a stray newline from a paste shows up as a mismatch
+ * against keyLength without ever revealing the value. */
+const RAW_KEY_LEN = process.env.MINEPEA_API_KEY?.length ?? 0;
 const WEBHOOK = process.env.DISCORD_PEAPOT_WEBHOOK_URL;
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -133,6 +136,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         detail: err instanceof Error ? err.message : String(err),
         keyConfigured: !!FRONTEND_KEY,
         keyLength: FRONTEND_KEY?.length ?? 0,
+        keyRawLength: RAW_KEY_LEN,
       },
       { status: 502 },
     );
