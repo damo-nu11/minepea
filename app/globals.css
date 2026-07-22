@@ -240,6 +240,33 @@
   display: none;
 }
 
+/* Slim scrollbar for panels that DO need a visible track, so the reader can
+   tell there is more below. The platform default paints a wide light-grey
+   bar that is the brightest thing on a black panel and reads as unstyled
+   chrome. Same plain-author-CSS reason as above: a Tailwind @utility with a
+   nested ::-webkit-scrollbar generates nothing. Two syntaxes on purpose,
+   scrollbar-color for Firefox and Chrome 121+, the pseudo-elements for
+   older WebKit; both resolve to the same look. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-fg-muted) 40%, transparent)
+    transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-fg-muted) 40%, transparent);
+}
+.scroll-slim:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-fg-muted) 70%, transparent);
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-fg);

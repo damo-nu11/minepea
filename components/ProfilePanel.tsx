@@ -437,7 +437,7 @@ export function ProfilePanel({
         role="dialog"
         aria-modal="true"
         aria-label="Profile"
-        className="absolute inset-y-0 right-0 flex w-full max-w-[400px] flex-col overflow-y-auto overscroll-contain border-l border-line-slate bg-bg px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5"
+        className="scroll-slim absolute inset-y-0 right-0 flex w-full max-w-[400px] flex-col overflow-y-auto overscroll-contain border-l border-line-slate bg-bg px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5"
       >
         <button
           ref={closeRef}

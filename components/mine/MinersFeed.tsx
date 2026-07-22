@@ -276,7 +276,7 @@ export function MinersFeed() {
       </Tooltip>
       {/* ~5 rows tall, then scrolls INSIDE the panel (row ≈ 44px). Fixed
           height so all 5 sit inside the box, not spilling out. */}
-      <div className="max-h-60 overflow-y-auto pr-1">
+      <div className="scroll-slim max-h-60 overflow-y-auto pr-2">
         {round.data && items.length === 0 && (
           <p className="pt-2 text-[13px] text-fg-muted">No deploys yet.</p>
         )}
