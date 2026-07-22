@@ -52,6 +52,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
  * their SSE payloads and refetches merely TRUE UP, so a short floor is safe
  * — steady-state strict usage is ~2/min even with auto-advancing rounds. */
 const MIN_REFETCH_MS = 4_000;
+/** Rewards poll. Matches the ~60s round cadence: a settled round is the only
+ * thing that changes this slice without an event reaching us. */
+const REWARDS_POLL_MS = 60_000;
 
 // ─── View models ─────────────────────────────────────────────────────────────
 
@@ -425,7 +428,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
 
   const [rewards, setRewards] = useState<HookResult<RewardsVM>>(LOADING);
-  const [staking, setStaking] = useState<HookResult<StakingPositionVM>>(LOADING);
+  const [staking, setStaking] =
+    useState<HookResult<StakingPositionVM>>(LOADING);
   const [automine, setAutomine] = useState<HookResult<AutomineVM>>(LOADING);
   // Bumped on stakeDeposited/stakeWithdrawn — StakePage keys its
   // /api/staking/stats fetch on it for fresh pool totals after each action.
@@ -462,23 +466,28 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const lastFetch = useRef(new Map<string, number>());
   const trailing = useRef(new Map<Kind, ReturnType<typeof setTimeout>>());
 
-  const applyResult = useCallback((kind: Kind, addrAt: Address, body: unknown) => {
-    if (addrRef.current !== addrAt) return; // identity changed mid-flight
-    if (kind === "rewards") {
-      void overlayChainRewards(addrAt, body as RewardsResponse).then((b) => {
-        if (addrRef.current !== addrAt) return; // re-check after the RPC read
-        setRewards({ data: toRewardsVM(b), status: "live" });
-      });
-      return;
-    }
-    else if (kind === "staking")
-      setStaking({ data: toStakingVM(body as StakingResponse), status: "live" });
-    else
-      setAutomine({
-        data: toAutomineVM(body as AutomineResponse),
-        status: "live",
-      });
-  }, []);
+  const applyResult = useCallback(
+    (kind: Kind, addrAt: Address, body: unknown) => {
+      if (addrRef.current !== addrAt) return; // identity changed mid-flight
+      if (kind === "rewards") {
+        void overlayChainRewards(addrAt, body as RewardsResponse).then((b) => {
+          if (addrRef.current !== addrAt) return; // re-check after the RPC read
+          setRewards({ data: toRewardsVM(b), status: "live" });
+        });
+        return;
+      } else if (kind === "staking")
+        setStaking({
+          data: toStakingVM(body as StakingResponse),
+          status: "live",
+        });
+      else
+        setAutomine({
+          data: toAutomineVM(body as AutomineResponse),
+          status: "live",
+        });
+    },
+    [],
+  );
 
   const markError = useCallback((kind: Kind, addrAt: Address) => {
     if (addrRef.current !== addrAt) return;
@@ -488,7 +497,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     if (kind === "rewards") {
       const zeros: RewardsResponse = {
         pendingETH: "0",
-        pendingPEA: { unroasted: "0", roasted: "0", gross: "0", fee: "0", net: "0" },
+        pendingPEA: {
+          unroasted: "0",
+          roasted: "0",
+          gross: "0",
+          fee: "0",
+          net: "0",
+        },
       };
       void overlayChainRewards(addrAt, zeros).then((b) => {
         if (addrRef.current !== addrAt) return;
@@ -529,11 +544,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     store.setAddress?.(addr);
   }, [store, addr]);
 
-  // NOTE: no per-rollover rewards refetch (removed 2026-07-17 — with rounds
-  // auto-advancing every minute it drained the SHARED 5/min strict pool and
-  // 429-starved the post-claim refreshes). A win's rewards land via the
-  // `checkpointed` event (the winner's next deploy auto-checkpoints, and
-  // AutoMiner deploys every round), which now direct-applies its payload.
+  // Rewards are polled on a timer; staking and automine are NOT. Only
+  // rewards change without an event we receive: a round settles roughly every
+  // 60s and credits its winners, whereas a staking position or an AutoMiner
+  // config only moves when this user acts, which arrives over SSE.
+  //
+  // This replaces a per-rollover refetch removed on 2026-07-17, which refetched
+  // ALL THREE slices every round and 429-starved the shared 5/min pool. One
+  // slice per minute, paused while the tab is hidden, leaves headroom for the
+  // post-claim refreshes that starved before.
 
   // Per-user SSE + initial strict-trio fetch.
   useEffect(() => {
@@ -555,9 +574,17 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
+    // RECONNECT-only resync. This used to fire on the first open too and lean
+    // on the 4s dedupe to swallow it, which holds only when the stream opens
+    // within 4s of mount. A slower open turned a 3-request page load into 6
+    // against a 5/min budget, so the 6th was already over.
+    let everOpened = false;
     es.addEventListener("open", () => {
       if (!alive) return;
-      // Reconnect resync (dedupe/throttle makes the first open a no-op).
+      if (!everOpened) {
+        everOpened = true;
+        return;
+      }
       fetchKind("rewards");
       fetchKind("staking");
       fetchKind("automine");
@@ -697,8 +724,19 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     });
 
     const trailingTimers = trailing.current;
+    // Poll rewards only, and only while the tab is visible: a background tab
+    // spending the shared budget starves the foreground one.
+    const pollRewards = () => {
+      if (document.visibilityState === "visible") fetchKind("rewards");
+    };
+    const rewardsTimer = setInterval(pollRewards, REWARDS_POLL_MS);
+    // Coming back to the tab is exactly when a stale figure gets looked at.
+    document.addEventListener("visibilitychange", pollRewards);
+
     return () => {
       alive = false;
+      clearInterval(rewardsTimer);
+      document.removeEventListener("visibilitychange", pollRewards);
       es.close();
       for (const t of trailingTimers.values()) clearTimeout(t);
       trailingTimers.clear();

@@ -40,11 +40,14 @@ import {
   PencilIcon,
   PersonIcon,
 } from "@/components/icons";
-import { IS_API_MODE } from "@/lib/engineContext";
 import { fmtToken, shortAddr } from "@/lib/format";
-import { useClaimTxs } from "@/lib/tx/hooks";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
-import { useAccessToken, useBalances, useDiscord, useWallet } from "@/lib/walletContext";
+import {
+  useAccessToken,
+  useBalances,
+  useDiscord,
+  useWallet,
+} from "@/lib/walletContext";
 import {
   announceProfileChange,
   AVATAR_KEY,
@@ -159,7 +162,6 @@ export function ProfilePanel({
   // undefined data in the mock shell, keeping the original zeroed rows.
   const stakingPos = useStakingPosition();
   const rewards = useRewards();
-  const { claimEth, claimPea } = useClaimTxs();
   const [copied, setCopied] = useState(false);
   const [username, setUsername] = useState("");
   const [editing, setEditing] = useState(false);
@@ -308,7 +310,10 @@ export function ProfilePanel({
   // Shared-profile write-through (Supabase via /api/profile). Fire-and-
   // forget: local state is already saved; a lost write self-heals on the
   // next save. "taken" surfaces inline under the username row.
-  const syncRemote = (nextUsername: string | null, nextAvatar: string | null) => {
+  const syncRemote = (
+    nextUsername: string | null,
+    nextAvatar: string | null,
+  ) => {
     if (!address) return;
     void pushProfile({
       address,
@@ -383,16 +388,6 @@ export function ProfilePanel({
   const refined = rewards.data?.refinedPea ?? 0;
   const unrefined = rewards.data?.unrefinedPea ?? 0;
   const total = b ? b.pea + staked + refined + unrefined : null;
-
-  // An uncheckpointed win shows ZERO pending amounts until checkpoint() runs
-  // — the claim itself checkpoints first, so it must stay enabled then.
-  const hasUncheckpointed = rewards.data?.uncheckpointedRound != null;
-  const canClaimEth =
-    !claimEth.pending &&
-    ((rewards.data?.pendingEth ?? 0) > 0 || hasUncheckpointed);
-  const canClaimPea =
-    !claimPea.pending &&
-    ((rewards.data?.netPea ?? 0) > 0 || hasUncheckpointed);
 
   return createPortal(
     <div className="fixed inset-0 z-50">
@@ -600,64 +595,9 @@ export function ProfilePanel({
           />
         </div>
 
-        {/* Claimable rewards — live backend only (no mock equivalent). */}
-        {IS_API_MODE && (
-          <>
-            <h2 className="font-wordmark mt-8 text-[20px] font-bold tracking-[-0.01em] text-fg">
-              Rewards
-            </h2>
-            {rewards.data?.uncheckpointedRound != null && (
-              <p className="mt-2 rounded-lg bg-accent/[0.08] px-3 py-2 text-[12.5px] leading-snug text-accent">
-                Round {rewards.data.uncheckpointedRound} reward pending.
-                Claiming checkpoints it automatically.
-              </p>
-            )}
-            <div className="mt-2 flex flex-col">
-              <Row label="ETH">
-                <span className="flex items-center gap-2.5">
-                  <span className="tnum text-[15px] font-semibold text-fg">
-                    {rewards.data?.pendingEthFormatted ?? "—"}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!canClaimEth}
-                    onClick={() => void claimEth.run().catch(() => {})}
-                    className={`flex h-8 items-center rounded-full border-[1.5px] px-3 text-[13px] font-bold transition-colors ${
-                      canClaimEth
-                        ? "cursor-pointer border-accent text-accent hover:bg-accent hover:text-on-light"
-                        : "border-line-slate text-fg-disabled"
-                    }`}
-                  >
-                    {claimEth.pending ? "Claiming..." : "Claim"}
-                  </button>
-                </span>
-              </Row>
-              <Row label="PEA">
-                <span className="flex items-center gap-2.5">
-                  <span className="tnum text-[15px] font-semibold text-fg">
-                    {rewards.data?.netPeaFormatted ?? "—"}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!canClaimPea}
-                    onClick={() => void claimPea.run().catch(() => {})}
-                    className={`flex h-8 items-center rounded-full border-[1.5px] px-3 text-[13px] font-bold transition-colors ${
-                      canClaimPea
-                        ? "cursor-pointer border-accent text-accent hover:bg-accent hover:text-on-light"
-                        : "border-line-slate text-fg-disabled"
-                    }`}
-                  >
-                    {claimPea.pending ? "Claiming..." : "Claim"}
-                  </button>
-                </span>
-              </Row>
-            </div>
-            <p className="mt-1 text-[11.5px] leading-snug text-fg-muted">
-              PEA pays out net of the 10% harvest fee; that fee is shared among
-              miners still holding unharvested PEA.
-            </p>
-          </>
-        )}
+        {/* Claiming lives on the deploy pane now (components/mine/ClaimRewards),
+            where a miner is already looking. Duplicating it here meant two
+            places to keep in step for the same action. */}
 
         <div className="mt-auto pt-10">
           <button

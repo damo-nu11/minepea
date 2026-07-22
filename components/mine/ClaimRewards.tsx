@@ -99,10 +99,13 @@ function ClaimButton({
       disabled={!enabled}
       onClick={onClick}
       aria-label={`Claim ${amount} ${label}`}
-      className={`focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-[11px] px-3 py-2.5 text-[13px] font-bold transition ${
+      // Outline pill, not a lime fill: white on the dark ground reads clearly
+      // (17.9:1) where white on the lime fill would be 1.18:1, and it leaves
+      // solid lime to Deploy alone as the pane's single primary action.
+      className={`focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-[11px] border px-3 py-2.5 text-[13px] font-bold transition ${
         enabled
-          ? "cursor-pointer bg-accent text-on-light hover:brightness-110"
-          : "cursor-default bg-white/[0.05] text-fg-muted"
+          ? "cursor-pointer border-accent/50 bg-accent/[0.06] text-fg hover:bg-accent hover:text-on-light"
+          : "cursor-default border-line-slate bg-white/[0.02] text-fg-disabled"
       }`}
     >
       {pending ? (
@@ -111,7 +114,10 @@ function ClaimButton({
         <>
           {icon}
           <span className="tnum">{amount}</span>
-          <span className="opacity-70">{label}</span>
+          {/* Full strength, not dimmed. White was asked for but measures
+              1.18:1 on the lime fill, under the 4.5:1 floor and effectively
+              invisible; black on lime is 17.9:1. */}
+          <span>{label}</span>
         </>
       )}
     </button>
