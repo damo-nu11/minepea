@@ -123,7 +123,17 @@ export async function GET(req: Request): Promise<NextResponse> {
   } catch (err) {
     report("peapot-cron", err, { step: "scan" });
     return NextResponse.json(
-      { error: "scan failed", announced },
+      {
+        error: "scan failed",
+        announced,
+        // Enough to tell the three failure modes apart without another
+        // deploy: no key configured, key sent but still refused, or the
+        // backend failing for some unrelated reason. Reports only WHETHER a
+        // key is set and how long it is, never the value.
+        detail: err instanceof Error ? err.message : String(err),
+        keyConfigured: !!FRONTEND_KEY,
+        keyLength: FRONTEND_KEY?.length ?? 0,
+      },
       { status: 502 },
     );
   }
