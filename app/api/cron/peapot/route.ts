@@ -37,6 +37,13 @@ import {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
+/**
+ * Shared secret that lets a SERVER-TO-SERVER call past the backend's bot
+ * protection, which blocks datacenter IPs and so blocked every request from
+ * Vercel while browsers were fine. Browser calls never send it and never
+ * needed it. Absent locally, where the header is simply omitted.
+ */
+const FRONTEND_KEY = process.env.MINEPEA_API_KEY;
 const WEBHOOK = process.env.DISCORD_PEAPOT_WEBHOOK_URL;
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -93,7 +100,10 @@ export async function GET(req: Request): Promise<NextResponse> {
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await fetch(
         `${API_URL}/api/rounds?peapot=true&page=${page}&limit=${PAGE_SIZE}`,
-        { cache: "no-store" },
+        {
+          cache: "no-store",
+          headers: FRONTEND_KEY ? { "X-Frontend-Key": FRONTEND_KEY } : {},
+        },
       );
       if (!res.ok) throw new Error(`backend /api/rounds ${res.status}`);
       const body = (await res.json()) as RoundsResponse;
