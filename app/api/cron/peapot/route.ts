@@ -12,9 +12,10 @@
  * obvious ordering, double-posts whenever the write fails after a successful
  * send.
  *
- * CATCH-UP: no time window and no cursor. It pages back through settled
- * rounds while it keeps finding unannounced hits, so a run that is late or a
- * cron that was down does not silently lose peapots.
+ * CATCH-UP: no time window and no cursor. The backend filters for us
+ * (`/api/rounds?peapot=true`), so every round that ever fired is in hand on
+ * every run and the dedup table decides what is new. A run that is late, or a
+ * cron that was down for hours, therefore cannot lose a peapot.
  *
  * `?test=1` posts one fake peapot using the live PEA price, to confirm the
  * webhook and the formatting without waiting for a real hit.
@@ -41,11 +42,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const maxDuration = 60;
 
-/** Settled rounds per page from the backend. */
+/** The backend's hard cap; asking for more still returns 50. */
 const PAGE_SIZE = 50;
-/** Cap the catch-up walk: enough to cover hours of downtime at 60s rounds,
- * bounded so a misconfigured backend cannot make this run forever. */
-const MAX_PAGES = 6;
+/** Bound on the paging loop; 50 pages is 2,500 peapots. */
+const MAX_PAGES = 50;
 
 export async function GET(req: Request): Promise<NextResponse> {
   if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !WEBHOOK || !API_URL) {
@@ -86,9 +86,13 @@ export async function GET(req: Request): Promise<NextResponse> {
   let announced = 0;
   let scanned = 0;
   try {
+    // Ask only for rounds that fired. This used to page every settled round
+    // and filter locally, which cost a request per 50 rounds and grew with the
+    // protocol; the filtered endpoint is one request and is complete.
+    const hits: PeapotHit[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await fetch(
-        `${API_URL}/api/rounds?settled=true&page=${page}&limit=${PAGE_SIZE}`,
+        `${API_URL}/api/rounds?peapot=true&page=${page}&limit=${PAGE_SIZE}`,
         { cache: "no-store" },
       );
       if (!res.ok) throw new Error(`backend /api/rounds ${res.status}`);
@@ -96,21 +100,15 @@ export async function GET(req: Request): Promise<NextResponse> {
       const rounds = body.rounds ?? [];
       if (rounds.length === 0) break;
       scanned += rounds.length;
-
-      const hits = peapotHits(rounds);
-      let postedOnThisPage = 0;
-      for (const hit of hits) {
-        if (await announce(db, WEBHOOK, hit, peaUsd)) {
-          announced++;
-          postedOnThisPage++;
-        }
-      }
-
-      // Stop as soon as a page yields nothing new: everything older has
-      // already been announced. Only keep walking back while the page is
-      // still turning up unposted hits, which is the downtime case.
-      if (postedOnThisPage === 0) break;
+      hits.push(...peapotHits(rounds));
       if (page >= (body.pagination?.pages ?? page)) break;
+    }
+
+    // Oldest first, so a backlog lands in the channel in the order it
+    // happened rather than newest-first.
+    hits.sort((a, b) => a.roundId - b.roundId);
+    for (const hit of hits) {
+      if (await announce(db, WEBHOOK, hit, peaUsd)) announced++;
     }
   } catch (err) {
     report("peapot-cron", err, { step: "scan" });
