@@ -16,6 +16,7 @@ import { StakePage } from "@/components/stake/StakePage";
 import { EngineProvider } from "@/lib/engineContext";
 import { SERVER_SNAPSHOT } from "@/lib/gameSnapshot";
 import { ethToWei } from "@/lib/mock/engine";
+import { avatarKey, usernameKey } from "@/lib/profile";
 import type { BalancesVM, EngineSnapshot, Store } from "@/lib/types";
 import { WalletContext, type WalletContextValue } from "@/lib/walletContext";
 
@@ -168,11 +169,12 @@ describe("MinersFeed previous-rounds-only filter + rewards", () => {
   });
 
   it("YOU rows wear the local profile: saved username + avatar replace the defaults", () => {
-    localStorage.setItem("pea-username", "peamaxi");
-    localStorage.setItem("pea-avatar", "data:image/jpeg;base64,Zg==");
+    const mine = "0x1111000000000000000000000000000000000000";
+    localStorage.setItem(usernameKey(mine), "peamaxi");
+    localStorage.setItem(avatarKey(mine), "data:image/jpeg;base64,Zg==");
     try {
       const ctx = walletCtx(1, 1);
-      ctx.address = "0x1111000000000000000000000000000000000000";
+      ctx.address = mine;
       wrap(<MinersFeed />, ctx, fixtureStore([99]));
       expect(screen.getByText("peamaxi")).toBeInTheDocument();
       // The address is replaced, not duplicated alongside the name.
@@ -180,8 +182,45 @@ describe("MinersFeed previous-rounds-only filter + rewards", () => {
       const avatar = document.querySelector('img[src^="data:image/jpeg"]');
       expect(avatar).not.toBeNull();
     } finally {
-      localStorage.removeItem("pea-username");
-      localStorage.removeItem("pea-avatar");
+      localStorage.clear();
+    }
+  });
+
+  it("a profile set on one wallet never shows on another", () => {
+    // Regression (2026-07-22): the keys were browser-global, so connecting a
+    // second wallet wore the first one's name and photo, and saving pushed
+    // that photo to the second wallet's PUBLIC row.
+    const other = "0x9999000000000000000000000000000000000000";
+    localStorage.setItem(usernameKey(other), "peamaxi");
+    localStorage.setItem(avatarKey(other), "data:image/jpeg;base64,Zg==");
+    try {
+      const ctx = walletCtx(1, 1);
+      ctx.address = "0x1111000000000000000000000000000000000000";
+      wrap(<MinersFeed />, ctx, fixtureStore([99]));
+      expect(screen.queryByText("peamaxi")).not.toBeInTheDocument();
+      expect(screen.getByText("0x1111...0000")).toBeInTheDocument();
+      expect(
+        document.querySelector('img[src^="data:image/jpeg"]'),
+      ).toBeNull();
+    } finally {
+      localStorage.clear();
+    }
+  });
+
+  it("drops the pre-namespace keys rather than adopting them", () => {
+    // They record no wallet, so adopting would attach one wallet's photo to
+    // whichever wallet connected next — the bug itself.
+    localStorage.setItem("pea-username", "peamaxi");
+    localStorage.setItem("pea-avatar", "data:image/jpeg;base64,Zg==");
+    try {
+      const ctx = walletCtx(1, 1);
+      ctx.address = "0x1111000000000000000000000000000000000000";
+      wrap(<MinersFeed />, ctx, fixtureStore([99]));
+      expect(screen.queryByText("peamaxi")).not.toBeInTheDocument();
+      expect(localStorage.getItem("pea-username")).toBeNull();
+      expect(localStorage.getItem("pea-avatar")).toBeNull();
+    } finally {
+      localStorage.clear();
     }
   });
 
@@ -228,6 +267,23 @@ describe("ConnectButton profile panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     expect(disconnected).toBe(true);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("the drawer wears THIS wallet's profile and never another's", async () => {
+    // The panel is the path that publishes to the shared row, so a leak here
+    // pushed one wallet's photo onto a different wallet's PUBLIC profile.
+    const mine = "0x1111111111111111111111111111111111111111";
+    const other = "0x9999999999999999999999999999999999999999";
+    localStorage.setItem(usernameKey(mine), "peamaxi");
+    localStorage.setItem(usernameKey(other), "someoneelse");
+    try {
+      wrap(<ConnectButton />, walletCtx(1, 2.5));
+      fireEvent.click(screen.getByRole("button", { name: "0x1111...1111" }));
+      expect(await screen.findByText("peamaxi")).toBeInTheDocument();
+      expect(screen.queryByText("someoneelse")).not.toBeInTheDocument();
+    } finally {
+      localStorage.clear();
+    }
   });
 
   it("dialog keyboard contract: focus moves in on open, Escape in edit cancels the edit only", () => {

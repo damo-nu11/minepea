@@ -199,7 +199,7 @@ export function MinersFeed() {
   // rows use the LOCAL profile (instant, offline); everyone resolves against
   // the SHARED Supabase profiles (env-gated, cached); wire minerName is the
   // final fallback before the short address.
-  const profile = useLocalProfile();
+  const profile = useLocalProfile(you);
 
   // PREVIOUS rounds only (user 2026-07-17, supersedes the latest-populated
   // rule): the panel is a record of the last finished round that HAD miners,

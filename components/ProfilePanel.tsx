@@ -50,9 +50,13 @@ import {
 } from "@/lib/walletContext";
 import {
   announceProfileChange,
-  AVATAR_KEY,
+  avatarKey,
+  invalidateProfile,
+  purgeLegacyProfile,
   pushProfile,
-  USERNAME_KEY,
+  readLocalProfile,
+  usernameKey,
+  useProfiles,
 } from "@/lib/profile";
 
 // Keys + change event live in lib/profile.ts (shared with the MINERS
@@ -60,13 +64,6 @@ import {
 const AVATAR_SIZE = 128;
 
 /** localStorage that never throws (blocked storage / quota — audit). */
-function safeGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
 function safeSet(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
@@ -155,6 +152,10 @@ export function ProfilePanel({
   onClose(): void;
 }) {
   const { address, disconnect } = useWallet();
+  // Storage keys and shared rows are both lowercased — one normalisation
+  // point so a checksummed address can never read a key it did not write.
+  const addr = address?.toLowerCase() ?? null;
+  const sharedRow = useProfiles(addr ? [addr] : []).get(addr ?? "");
   const balances = useBalances();
   const getToken = useAccessToken();
   const discord = useDiscord();
@@ -221,12 +222,41 @@ export function ProfilePanel({
 
   // localStorage only after mount (Convention 7 — hydration safety),
   // guarded (audit: bare reads crash when the browser blocks storage).
+  // Keyed on the ADDRESS, not mount: this used to run once with an empty dep
+  // array against browser-global keys, so connecting a second wallet kept the
+  // first one's name and photo on screen and, worse, let them be published
+  // to the second wallet's row. Disconnecting clears it for the same reason.
+  // Deferred: a synchronous setState in an effect body cascades renders.
   useEffect(() => {
+    purgeLegacyProfile();
+    let cancelled = false;
     queueMicrotask(() => {
-      setUsername(safeGet(USERNAME_KEY) ?? "");
-      setAvatar(safeGet(AVATAR_KEY));
+      if (cancelled) return;
+      const local = readLocalProfile(addr);
+      setUsername(local.username ?? "");
+      setAvatar(local.avatar);
     });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [addr]);
+
+  // Fall back to the shared row so a profile follows the WALLET rather than
+  // the browser that set it: on a new device local storage is empty while
+  // every other miner already sees the name. Local always wins, so this can
+  // never overwrite an edit in progress.
+  useEffect(() => {
+    if (!sharedRow) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setUsername((u) => u || (sharedRow.username ?? ""));
+      setAvatar((a) => a ?? sharedRow.avatar ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedRow]);
 
   // Dialog keyboard contract (audit): move focus in on open, trap Tab,
   // Escape closes, and focus returns to the opener on close (cleanup).
@@ -314,9 +344,10 @@ export function ProfilePanel({
     nextUsername: string | null,
     nextAvatar: string | null,
   ) => {
-    if (!address) return;
+    if (!addr) return;
+    invalidateProfile(addr);
     void pushProfile({
-      address,
+      address: addr,
       username: nextUsername,
       avatar: nextAvatar,
       getToken,
@@ -324,20 +355,21 @@ export function ProfilePanel({
   };
 
   const saveUsername = () => {
+    if (!addr) return;
     const clean = draft.trim().slice(0, 24);
     setUsername(clean);
-    safeSet(USERNAME_KEY, clean);
+    safeSet(usernameKey(addr), clean);
     announceProfileChange();
     setEditing(false);
     syncRemote(clean || null, avatar);
   };
 
   const onAvatarPick = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || !addr) return;
     try {
       const dataUrl = await fileToAvatar(file);
       setAvatar(dataUrl);
-      safeSet(AVATAR_KEY, dataUrl);
+      safeSet(avatarKey(addr), dataUrl);
       announceProfileChange();
       syncRemote(username || null, dataUrl);
     } catch {
@@ -371,9 +403,10 @@ export function ProfilePanel({
   };
 
   const removeAvatar = () => {
+    if (!addr) return;
     setAvatar(null);
     try {
-      localStorage.removeItem(AVATAR_KEY);
+      localStorage.removeItem(avatarKey(addr));
     } catch {
       // Storage blocked — the state reset still clears the session.
     }

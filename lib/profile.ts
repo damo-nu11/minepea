@@ -18,8 +18,22 @@
 import { useEffect, useState } from "react";
 import { supabase, type ProfileRow } from "@/lib/supabase";
 
-export const USERNAME_KEY = "pea-username";
-export const AVATAR_KEY = "pea-avatar";
+/**
+ * Keys are NAMESPACED BY WALLET, and must stay that way. A browser-global
+ * key gives one profile per BROWSER, so a second wallet inherits the first
+ * one's name and photo on screen; and since the panel writes the address it
+ * is connected to alongside whatever fields are in state, those inherited
+ * fields then reach the second wallet's shared row. Profile state is
+ * per-wallet at every layer: storage key, panel state, and shared row.
+ */
+export const usernameKey = (address: string) =>
+  `pea-username:${address.toLowerCase()}`;
+export const avatarKey = (address: string) =>
+  `pea-avatar:${address.toLowerCase()}`;
+
+/** Pre-namespace keys, purged on sight — see purgeLegacyProfile. */
+const LEGACY_KEYS = ["pea-username", "pea-avatar"] as const;
+
 export const PROFILE_CHANGED_EVENT = "pea-profile-changed";
 
 export interface LocalProfile {
@@ -28,15 +42,35 @@ export interface LocalProfile {
   avatar: string | null;
 }
 
-/** Guarded read — storage can be blocked (private mode, quota, policy). */
-export function readLocalProfile(): LocalProfile {
+const EMPTY: LocalProfile = { username: null, avatar: null };
+
+/**
+ * Guarded read — storage can be blocked (private mode, quota, policy).
+ * No address (disconnected) means no profile, never the last one seen.
+ */
+export function readLocalProfile(address: string | null | undefined) {
+  if (!address) return EMPTY;
   try {
     return {
-      username: localStorage.getItem(USERNAME_KEY),
-      avatar: localStorage.getItem(AVATAR_KEY),
+      username: localStorage.getItem(usernameKey(address)),
+      avatar: localStorage.getItem(avatarKey(address)),
     };
   } catch {
-    return { username: null, avatar: null };
+    return EMPTY;
+  }
+}
+
+/**
+ * Drop the pre-namespace keys. They cannot be migrated safely: nothing
+ * records which wallet set them, so adopting them would attach one wallet's
+ * photo to whichever wallet happens to connect next, which is the bug.
+ * Users who had set a profile re-upload once (user 2026-07-22).
+ */
+export function purgeLegacyProfile(): void {
+  try {
+    for (const k of LEGACY_KEYS) localStorage.removeItem(k);
+  } catch {
+    // Storage blocked — nothing to purge.
   }
 }
 
@@ -49,13 +83,15 @@ export function announceProfileChange(): void {
  * Hydration-safe subscription: null on the server and first client render,
  * real values after mount, live across same-page edits AND other tabs.
  */
-export function useLocalProfile(): LocalProfile {
-  const [profile, setProfile] = useState<LocalProfile>({
-    username: null,
-    avatar: null,
-  });
+export function useLocalProfile(
+  address: string | null | undefined,
+): LocalProfile {
+  const [profile, setProfile] = useState<LocalProfile>(EMPTY);
   useEffect(() => {
-    const read = () => setProfile(readLocalProfile());
+    purgeLegacyProfile();
+    // Re-reads on every address change, so switching wallets swaps the
+    // profile rather than leaving the previous one on screen.
+    const read = () => setProfile(readLocalProfile(address));
     read();
     window.addEventListener(PROFILE_CHANGED_EVENT, read);
     window.addEventListener("storage", read);
@@ -63,7 +99,7 @@ export function useLocalProfile(): LocalProfile {
       window.removeEventListener(PROFILE_CHANGED_EVENT, read);
       window.removeEventListener("storage", read);
     };
-  }, []);
+  }, [address]);
   return profile;
 }
 
@@ -116,6 +152,15 @@ export async function pushProfile(params: {
  * address per session; the miners panel re-renders ~3/s off engine ticks,
  * so resolution must never refetch on render. */
 const profileCache = new Map<string, ProfileRow | null>();
+
+/**
+ * Forget a cached row after writing it. Without this the panel seeds itself
+ * from the cache on reopen, so clearing a username would restore the old one
+ * from a row that no longer exists.
+ */
+export function invalidateProfile(address: string): void {
+  profileCache.delete(address.toLowerCase());
+}
 
 /**
  * Resolve shared profiles for a set of lowercased addresses. Returns only
