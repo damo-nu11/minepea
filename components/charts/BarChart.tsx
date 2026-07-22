@@ -8,7 +8,12 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { extent, niceTicks } from "@/components/charts/scale";
+import {
+  AXIS_FONT_PX,
+  axisPadLeft,
+  extent,
+  niceTicks,
+} from "@/components/charts/scale";
 
 export interface BarSeries {
   name: string;
@@ -71,12 +76,16 @@ export function BarChart({
     const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    const iW = Math.max(120, width - PAD.left - PAD.right);
+    // Gutter sized to the widest tick label, same helper LineChart uses. This
+    // was a fixed 46px, which is narrower than a label like "15000.0%" needs,
+    // so the leading digit was painted outside the viewBox and lost.
+    const x0 = axisPadLeft(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
+    const iW = Math.max(120, width - x0 - PAD.right);
     const iH = height - PAD.top - PAD.bottom;
     const yOf = (v: number) =>
       PAD.top + iH - ((v - vMin) / Math.max(1e-9, vMax - vMin)) * iH;
-    return { yOf, ticks, slotW: iW / Math.max(1, labels.length), x0: PAD.left };
-  }, [labels, series, overlays, width, height]);
+    return { yOf, ticks, slotW: iW / Math.max(1, labels.length), x0 };
+  }, [labels, series, overlays, width, height, yFmt]);
 
   const every =
     xTickEvery ?? Math.max(1, Math.ceil(labels.length / (width < 480 ? 4 : 8)));
@@ -122,7 +131,7 @@ export function BarChart({
         {ticks.map((v) => (
           <g key={v}>
             <line
-              x1={PAD.left}
+              x1={x0}
               x2={width - PAD.right}
               y1={yOf(v)}
               y2={yOf(v)}
@@ -130,10 +139,10 @@ export function BarChart({
               strokeOpacity={v === 0 ? "0.9" : "0.55"}
             />
             <text
-              x={PAD.left - 8}
+              x={x0 - 8}
               y={yOf(v) + 3.5}
               textAnchor="end"
-              fontSize="10.5"
+              fontSize={AXIS_FONT_PX}
               fill="var(--color-fg-muted)"
             >
               {yFmt(v)}
@@ -172,7 +181,7 @@ export function BarChart({
                   x={cx}
                   y={height - 6}
                   textAnchor="middle"
-                  fontSize="10.5"
+                  fontSize={AXIS_FONT_PX}
                   fill="var(--color-fg-muted)"
                 >
                   {lab}

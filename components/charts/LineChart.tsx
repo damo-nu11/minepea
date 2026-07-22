@@ -12,7 +12,13 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { extent, fmtDate, niceTicks } from "@/components/charts/scale";
+import {
+  AXIS_FONT_PX,
+  axisPadLeft,
+  extent,
+  fmtDate,
+  niceTicks,
+} from "@/components/charts/scale";
 import type { TimePoint } from "@/lib/mock/analytics";
 
 export interface LineSeries {
@@ -94,21 +100,10 @@ export function LineChart({
     const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    // The y gutter sizes to its widest label. A fixed width silently clips the
-    // leading characters once a formatter emits anything long (a price axis
-    // renders "$280.00" or "$0.00600", not "12").
-    //
-    // Width is estimated per character, not by length: the brand face is wide
-    // and geometric, so digits run ~0.73em while separators run ~0.33em. A
-    // flat per-character average under-measures "$280.00" enough to clip the
-    // "$" clean off.
-    const labelWidth = (label: string) => {
-      let w = 0;
-      for (const ch of label) w += ch === "." || ch === "," ? 3.6 : 7.7;
-      return w;
-    };
-    const widest = ticks.reduce((m, v) => Math.max(m, labelWidth(yFmt(v))), 0);
-    const padLeft = Math.max(PAD.left, Math.ceil(widest) + 12);
+    // The y gutter sizes to its widest label (axisPadLeft measures the real
+    // face, with a per-glyph estimate as a floor). Shared with BarChart so
+    // both axes clip identically, which is to say never.
+    const padLeft = axisPadLeft(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
     const iW = Math.max(120, width - padLeft - PAD.right);
     const iH = h - PAD.top - PAD.bottom;
     const xOf = (t: number) =>
@@ -209,7 +204,7 @@ export function LineChart({
               x={padLeft - 8}
               y={yOf(v) + 3.5}
               textAnchor="end"
-              fontSize="10.5"
+              fontSize={AXIS_FONT_PX}
               fill="var(--color-fg-muted)"
             >
               {yFmt(v)}
@@ -227,7 +222,7 @@ export function LineChart({
             textAnchor={
               n === 0 ? "start" : n === xTickIdx.length - 1 ? "end" : "middle"
             }
-            fontSize="10.5"
+            fontSize={AXIS_FONT_PX}
             fill="var(--color-fg-muted)"
           >
             {xFmt(times[i])}
