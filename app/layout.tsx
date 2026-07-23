@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded } from "next/font/google";
+import { AgentFab } from "@/components/AgentFab";
 import { BottomNav } from "@/components/BottomNav";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -86,6 +87,8 @@ export default function RootLayout({
               BottomNav (h-16 + safe area) — it's last in the column now. */}
           <Footer />
           <BottomNav />
+          {/* Agent launcher, bottom-left (bottom-right belongs to toasts). */}
+          <AgentFab />
         </Providers>
       </body>
     </html>

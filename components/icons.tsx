@@ -43,9 +43,15 @@ export function EthIcon({ size = 18, className }: IconProps) {
       className={className}
       aria-hidden
     >
-      <path opacity="0.6" d="m392.07 0-8.57 29.11v844.63l8.57 8.55 392.06-231.75Z" />
+      <path
+        opacity="0.6"
+        d="m392.07 0-8.57 29.11v844.63l8.57 8.55 392.06-231.75Z"
+      />
       <path d="M392.07 0 0 650.54l392.07 231.75V472.33Z" />
-      <path opacity="0.62" d="m392.07 956.52-4.83 5.89v300.87l4.83 14.1 392.3-552.49Z" />
+      <path
+        opacity="0.62"
+        d="m392.07 956.52-4.83 5.89v300.87l4.83 14.1 392.3-552.49Z"
+      />
       <path d="M392.07 1277.38V956.52L0 724.89Z" />
       <path opacity="0.38" d="m392.07 882.29 392.06-231.75-392.06-178.21Z" />
       <path opacity="0.58" d="m0 650.54 392.07 231.75V472.33Z" />
@@ -353,6 +359,41 @@ export function PersonIcon({ size = 16, className }: IconProps) {
       aria-hidden
     >
       <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" />
+    </svg>
+  );
+}
+
+/**
+ * The mining agent: a robot head whose antenna is tipped with a pea.
+ *
+ * A robot head is the one shape that reads as "agent" instantly at 20px, so
+ * the brand lives in the details rather than the silhouette: the bead on the
+ * antenna is the pea, and the visor is a flat-topped pentagon echoing the
+ * board. Eyes and visor are cut out with evenodd rather than painted, so the
+ * glyph inverts correctly when the button fills on hover.
+ */
+export function AgentIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      {/* Antenna: pea bead + stem down to the crown. */}
+      <circle cx="12" cy="2.6" r="1.8" />
+      <rect x="11.3" y="4" width="1.4" height="2.6" rx="0.7" />
+      {/* Head with the visor and both eyes knocked out. */}
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M7.5 6.4h9A3.5 3.5 0 0 1 20 9.9v7.2a3.5 3.5 0 0 1-3.5 3.5h-9A3.5 3.5 0 0 1 4 17.1V9.9a3.5 3.5 0 0 1 3.5-3.5Zm4.5 3-4 2.1v3.2l4 2.1 4-2.1v-3.2l-4-2.1Z"
+      />
+      {/* Eyes, painted back inside the knocked-out visor. */}
+      <circle cx="10" cy="13.5" r="1.05" />
+      <circle cx="14" cy="13.5" r="1.05" />
     </svg>
   );
 }
