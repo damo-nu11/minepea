@@ -1,71 +1,17 @@
 /**
- * Pins for the peapot announcement logic.
+ * Pins for the announcement surface: the embed and the webhook post.
+ * Hit DETECTION pins live in peapotChain.test.ts with the chain reader.
  *
  * Every failure here is silent in production: a wrong tile number reads as a
- * plausible announcement, a missed hit is indistinguishable from no hit, and
- * a NaN amount still posts. None of it throws, so nothing surfaces except a
+ * plausible announcement and nothing throws, so nothing surfaces except a
  * wrong message in a public channel.
  */
 
 import { describe, expect, it, vi } from "vitest";
-import {
-  peapotEmbed,
-  peapotHits,
-  postToWebhook,
-  type SettledRoundLike,
-} from "@/lib/server/peapotAlerts";
-
-const PEA = (n: number) => String(BigInt(Math.round(n * 1e6)) * 10n ** 12n);
-
-function round(over: Partial<SettledRoundLike> = {}): SettledRoundLike {
-  return {
-    roundId: 100,
-    peapotAmount: "0",
-    winningBlock: 0,
-    ...over,
-  };
-}
-
-describe("peapotHits", () => {
-  it("ignores rounds where the peapot did not drop", () => {
-    expect(peapotHits([round(), round({ roundId: 101 })])).toEqual([]);
-  });
-
-  it("finds the rounds that did drop", () => {
-    const hits = peapotHits([
-      round({ roundId: 7, peapotAmount: PEA(42.5), winningBlock: 3 }),
-      round({ roundId: 8 }),
-      round({ roundId: 9, peapotAmount: PEA(1.25), winningBlock: 24 }),
-    ]);
-    expect(hits.map((h) => h.roundId)).toEqual([7, 9]);
-    expect(hits[0].pea).toBeCloseTo(42.5, 6);
-  });
-
-  it("converts the tile to the 1-indexed number the site shows", () => {
-    // The backend counts tiles from 0. Announcing the raw index names a
-    // different tile than the board, on every single alert.
-    const [first] = peapotHits([
-      round({ peapotAmount: PEA(1), winningBlock: 0 }),
-    ]);
-    expect(first.tile).toBe(1);
-    const [last] = peapotHits([
-      round({ peapotAmount: PEA(1), winningBlock: 24 }),
-    ]);
-    expect(last.tile).toBe(25);
-  });
-
-  it("drops a non-zero amount it cannot parse rather than announcing NaN", () => {
-    expect(peapotHits([round({ peapotAmount: "not-a-number" })])).toEqual([]);
-  });
-
-  it("never carries a winner: the peapot always splits across the tile", () => {
-    const [hit] = peapotHits([round({ peapotAmount: PEA(3) })]);
-    expect(Object.keys(hit).sort()).toEqual(["pea", "roundId", "tile"]);
-  });
-});
+import { peapotEmbed, postToWebhook } from "@/lib/server/peapotAlerts";
 
 describe("peapotEmbed", () => {
-  const hit = { roundId: 512, pea: 30.921, tile: 17 };
+  const hit = { roundId: 512, pea: 30.921, tile: 17, settledAtMs: 0 };
 
   it("names the round and the tile", () => {
     const e = peapotEmbed(hit, 2.5, "2026-07-22T00:00:00.000Z");
@@ -102,7 +48,7 @@ describe("peapotEmbed", () => {
 
 describe("postToWebhook", () => {
   const embed = peapotEmbed(
-    { roundId: 1, pea: 1, tile: 1 },
+    { roundId: 1, pea: 1, tile: 1, settledAtMs: 0 },
     1,
     "2026-07-22T00:00:00.000Z",
   );

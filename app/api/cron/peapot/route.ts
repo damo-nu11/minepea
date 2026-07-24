@@ -1,9 +1,9 @@
 /**
  * Scheduled peapot announcements: GET with `Authorization: Bearer CRON_SECRET`
  * (Vercel Cron attaches it automatically when the env var exists; see
- * vercel.json for the schedule). Reads recent settled rounds from the game
- * backend, finds any whose peapot dropped, and posts one embed per hit to the
- * Discord channel webhook.
+ * vercel.json for the schedule). Reads RoundSettled events off the chain,
+ * finds any whose peapot dropped, and posts one embed per hit to the Discord
+ * channel webhook.
  *
  * IDEMPOTENCY: a round is CLAIMED in peapot_announcements before the post,
  * not after. The primary key means two overlapping cron runs cannot both
@@ -12,10 +12,12 @@
  * obvious ordering, double-posts whenever the write fails after a successful
  * send.
  *
- * CATCH-UP: no time window and no cursor. The backend filters for us
- * (`/api/rounds?peapot=true`), so every round that ever fired is in hand on
- * every run and the dedup table decides what is new. A run that is late, or a
- * cron that was down for hours, therefore cannot lose a peapot.
+ * SOURCE: the chain, not the game API. `RoundSettled` logs carry the peapot
+ * amount, and RPC serves servers as a matter of course, so nothing sits
+ * between this cron and the answer. The scan window comfortably exceeds the
+ * announce window, so every hit that could still post is always in view; a
+ * hit older than the window never posts by definition, making a cursor
+ * unnecessary.
  *
  * `?test=1` posts one fake peapot using the live PEA price, to confirm the
  * webhook and the formatting without waiting for a real hit.
@@ -23,42 +25,26 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import type { RoundsResponse } from "@/lib/api/translate";
 import { fetchPriceHistory } from "@/lib/prices/geckoTerminal";
 import { report } from "@/lib/report";
 import {
+  ANNOUNCE_MAX_AGE_MS,
   type PeapotHit,
   peapotEmbed,
-  peapotHits,
   postToWebhook,
   TEST_HIT,
 } from "@/lib/server/peapotAlerts";
+import { scanPeapotHits } from "@/lib/server/peapotChain";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
-/**
- * Shared secret that lets a SERVER-TO-SERVER call past the backend's bot
- * protection, which blocks datacenter IPs and so blocked every request from
- * Vercel while browsers were fine. Browser calls never send it and never
- * needed it. Absent locally, where the header is simply omitted.
- */
-const FRONTEND_KEY = process.env.MINEPEA_API_KEY?.trim();
-/** Untrimmed length, so a stray newline from a paste shows up as a mismatch
- * against keyLength without ever revealing the value. */
-const RAW_KEY_LEN = process.env.MINEPEA_API_KEY?.length ?? 0;
 const WEBHOOK = process.env.DISCORD_PEAPOT_WEBHOOK_URL;
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const maxDuration = 60;
 
-/** The backend's hard cap; asking for more still returns 50. */
-const PAGE_SIZE = 50;
-/** Bound on the paging loop; 50 pages is 2,500 peapots. */
-const MAX_PAGES = 50;
-
 export async function GET(req: Request): Promise<NextResponse> {
-  if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !WEBHOOK || !API_URL) {
+  if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !WEBHOOK) {
     return NextResponse.json({ error: "not configured" }, { status: 503 });
   }
   if (req.headers.get("authorization") !== `Bearer ${CRON_SECRET}`) {
@@ -94,34 +80,25 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   let announced = 0;
-  let scanned = 0;
+  let scan;
   try {
-    // Ask only for rounds that fired. This used to page every settled round
-    // and filter locally, which cost a request per 50 rounds and grew with the
-    // protocol; the filtered endpoint is one request and is complete.
-    const hits: PeapotHit[] = [];
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await fetch(
-        `${API_URL}/api/rounds?peapot=true&page=${page}&limit=${PAGE_SIZE}`,
-        {
-          cache: "no-store",
-          headers: FRONTEND_KEY ? { "X-Frontend-Key": FRONTEND_KEY } : {},
-        },
-      );
-      if (!res.ok) throw new Error(`backend /api/rounds ${res.status}`);
-      const body = (await res.json()) as RoundsResponse;
-      const rounds = body.rounds ?? [];
-      if (rounds.length === 0) break;
-      scanned += rounds.length;
-      hits.push(...peapotHits(rounds));
-      if (page >= (body.pagination?.pages ?? page)) break;
-    }
+    scan = await scanPeapotHits();
 
     // Oldest first, so a backlog lands in the channel in the order it
     // happened rather than newest-first.
-    hits.sort((a, b) => a.roundId - b.roundId);
+    const hits = [...scan.hits].sort((a, b) => a.roundId - b.roundId);
     for (const hit of hits) {
-      if (await announce(db, WEBHOOK, hit, peaUsd)) announced++;
+      // Announce only RECENT hits; older ones are claimed silently so they
+      // never post. The scan window exceeds the announce window, so a run
+      // after downtime sees the stale tail and buries it here instead of
+      // flooding the channel with old hits announced as though they just
+      // dropped. A hit with no timestamp is treated as old, never fresh.
+      const age = hit.settledAtMs > 0 ? Date.now() - hit.settledAtMs : Infinity;
+      if (age <= ANNOUNCE_MAX_AGE_MS) {
+        if (await announce(db, WEBHOOK, hit, peaUsd)) announced++;
+      } else {
+        await claimSilently(db, hit);
+      }
     }
   } catch (err) {
     report("peapot-cron", err, { step: "scan" });
@@ -129,20 +106,40 @@ export async function GET(req: Request): Promise<NextResponse> {
       {
         error: "scan failed",
         announced,
-        // Enough to tell the three failure modes apart without another
-        // deploy: no key configured, key sent but still refused, or the
-        // backend failing for some unrelated reason. Reports only WHETHER a
-        // key is set and how long it is, never the value.
         detail: err instanceof Error ? err.message : String(err),
-        keyConfigured: !!FRONTEND_KEY,
-        keyLength: FRONTEND_KEY?.length ?? 0,
-        keyRawLength: RAW_KEY_LEN,
       },
       { status: 502 },
     );
   }
 
-  return NextResponse.json({ scanned, announced, peaUsd });
+  const summary = {
+    // Settlement events seen in the window, hits or not; proves the chain
+    // read worked even on the common run where no peapot fired.
+    scanned: scan.settledSeen,
+    announced,
+    peaUsd,
+    fromBlock: scan.fromBlock,
+    headBlock: scan.headBlock,
+  };
+  // Same greppable prefix report() uses, so SUCCESS is readable straight
+  // from the platform logs. The response body needs the bearer secret;
+  // the log line needs only dashboard access.
+  console.log("[pea:peapot-cron]", summary);
+  return NextResponse.json(summary);
+}
+
+/**
+ * Mark a hit as handled WITHOUT posting. Same insert announce() uses as its
+ * lock, so a hit claimed here can never be posted by a later run either. A
+ * duplicate key just means it was already handled, which is fine.
+ */
+async function claimSilently(
+  db: SupabaseClient,
+  hit: PeapotHit,
+): Promise<void> {
+  await db
+    .from("peapot_announcements")
+    .insert({ round_id: hit.roundId, pea_amount: String(hit.pea) });
 }
 
 /**

@@ -1,71 +1,36 @@
 /**
  * SERVER-ONLY: peapot Discord announcements.
  *
- * The detection problem is already solved upstream. The game backend indexes
- * every settled round and reports `peapotAmount` on it, so this never touches
- * the chain: no event ABI to keep in step with the contract, no RPC, and no
- * block window. `lib/abi/gridMining.ts` is a minimal hand-curated ABI with no
- * events in it at all, so a log-scanning version would need a second ABI that
- * breaks silently if the contract's event signature ever changes.
+ * Detection lives in lib/server/peapotChain.ts, which reads `RoundSettled`
+ * events straight off the chain. It used to come from the game API, which
+ * every browser could reach and no server could: the API's edge challenges
+ * datacenter traffic, a server cannot answer a challenge, and that product
+ * accepts no exceptions, so the cron's requests died at the front door with
+ * the header rule powerless to help. Reading the chain removes the edge from
+ * the path structurally rather than negotiating with it.
  *
- * There is also no time window and no cursor. The route reads recent settled
- * rounds and asks the dedup table what it has already posted, paging further
- * back while it still finds unannounced hits. A cron that is late, or was
- * down for hours, therefore catches up on its next run rather than losing
- * those peapots.
- *
- * This module holds the parts worth testing: which rounds count as hits, and
- * what the embed says. The route owns auth, the database and the network.
+ * This module holds the parts every announcer needs regardless of source:
+ * the hit shape, the freshness window, the embed, and the webhook post. The
+ * route owns auth, the dedup table and the loop.
  */
 
-import { fmtToken, fromWei } from "@/lib/format";
+import { fmtToken } from "@/lib/format";
 
 /**
- * The fields of a settled round this module needs.
- *
- * Deliberately no winner: the peapot always splits across the winning tile's
- * miners (user 2026-07-22), so there is never a single recipient to name.
+ * Announce hits no older than this; the route claims older ones silently.
+ * The chain scanner sizes its lookback off this constant so every hit that
+ * could still post is guaranteed to be inside the scan.
  */
-export interface SettledRoundLike {
-  roundId: number;
-  /** Decimal wei string. "0" means the peapot did not drop this round. */
-  peapotAmount: string;
-  /** ZERO-INDEXED, as the backend reports it. */
-  winningBlock: number;
-}
+export const ANNOUNCE_MAX_AGE_MS = 60 * 60 * 1000;
 
 export interface PeapotHit {
   roundId: number;
   /** Whole PEA, already out of wei. */
   pea: number;
-  /** 1-indexed, as the site displays it. */
+  /** 1-indexed, as the site displays it. The contract counts from 0. */
   tile: number;
-}
-
-/**
- * Rounds where the peapot actually dropped.
- *
- * A hit is `peapotAmount` other than "0". The backend normalises hex to
- * decimal at the translate boundary, but this runs against the raw payload,
- * so guard against a value that is non-zero yet unparseable rather than
- * announcing a peapot of NaN PEA.
- */
-export function peapotHits(rounds: SettledRoundLike[]): PeapotHit[] {
-  const hits: PeapotHit[] = [];
-  for (const r of rounds) {
-    if (!r.peapotAmount || r.peapotAmount === "0") continue;
-    const pea = fromWei(r.peapotAmount);
-    if (!Number.isFinite(pea) || pea <= 0) continue;
-    hits.push({
-      roundId: r.roundId,
-      pea,
-      // The backend counts tiles from 0; every user-facing surface counts
-      // from 1 (see mappers.ts tileLabel). Announcing the raw index would
-      // name the wrong tile.
-      tile: r.winningBlock + 1,
-    });
-  }
-  return hits;
+  /** Settlement time in epoch ms, from the block that emitted the event. */
+  settledAtMs: number;
 }
 
 /** Voltage lime, matching the site's accent. */
@@ -124,6 +89,7 @@ export const TEST_HIT: PeapotHit = {
   roundId: 9999,
   pea: 30.921,
   tile: 17,
+  settledAtMs: 0,
 };
 
 /** POST the embed to the channel webhook. Throws on a non-2xx. */
