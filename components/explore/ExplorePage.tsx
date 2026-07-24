@@ -938,10 +938,11 @@ function MiningTab() {
   const history = useRoundHistory();
   const rows = useMemo(() => history.data ?? [], [history.data]);
 
-  // Peapots come from a full server-side scan of settled rounds, NOT from the
-  // round history (capped at 120) or the analytics series (a ~500-round
-  // window). Both of those silently omitted older hits. Mock mode keeps the
-  // history filter because the demo engine hits often enough for it to work.
+  // Peapots come from the backend's ?peapot=true filter (complete by
+  // definition, refreshed as rounds settle), NOT from the round history
+  // (capped at 120) or the analytics series (a ~500-round window). Both of
+  // those silently omitted older hits. Mock mode keeps the history filter
+  // because the demo engine hits often enough for it to work.
   const livePeapots = usePeapotRounds();
   const peapots = useMemo(
     () =>
