@@ -167,6 +167,12 @@ export function MinePage() {
   // two turned a transient RPC failure into a permanent "Insufficient
   // funds" that the user could do nothing about.
   const balanceKnown = balances.status === "live";
+  // A FAILED read is not a loading one. Rendering both as "Checking
+  // balance..." left users whose network cannot reach the RPC host staring
+  // at a permanent loading state with a disabled CTA (live incident,
+  // 2026-07-25). In the error state the CTA becomes the retry control.
+  const balancesError =
+    wallet.status === "connected" && balances.status === "error";
   // Multi-round arms the AutoMiner, which takes an executor fee ON TOP of
   // the stake. Charging affordability against the stake alone let a user
   // commit to more than they hold.
@@ -258,11 +264,13 @@ export function MinePage() {
             ? "Round finishing"
             : dataStale
               ? "Reconnecting..."
-              : wallet.status === "connected" && !balanceKnown
-                ? "Checking balance..."
-                : exceedsBalance && amountNum > 0 && tileCount > 0
-                  ? "Insufficient funds"
-                  : "Deploy";
+              : balancesError
+                ? "Retry balance check"
+                : wallet.status === "connected" && !balanceKnown
+                  ? "Checking balance..."
+                  : exceedsBalance && amountNum > 0 && tileCount > 0
+                    ? "Insufficient funds"
+                    : "Deploy";
 
   // MAX: spread (balance − dust buffer) across tiles × rounds. FLOOR at 4dp —
   // toFixed rounds half-up, which multiplied back by tiles×rounds could
@@ -374,7 +382,8 @@ export function MinePage() {
               <span className="relative z-[1] mt-1.5 flex items-center gap-2 text-[13px] text-fg-muted">
                 <WalletIcon size={14} />
                 <span className="tnum text-fg-body">
-                  Ξ {fmtToken(balance, 4)}
+                  {/* An unreadable balance is a dash, never a confident 0. */}Ξ{" "}
+                  {balancesError ? "—" : fmtToken(balance, 4)}
                 </span>
               </span>
             </div>
@@ -501,16 +510,20 @@ export function MinePage() {
           </span>
           <button
             type="button"
-            aria-disabled={!canDeploy}
+            aria-disabled={!canDeploy && !balancesError}
             onClick={() => {
               // Guarded rather than natively disabled: a disabled element
               // loses keyboard focus the instant it is clicked, stranding
               // the user. This keeps focus on the button through the
               // deploying -> deployed transition.
+              if (balancesError) {
+                wallet.refreshBalances();
+                return;
+              }
               if (canDeploy) deploy();
             }}
             className={`mt-1 rounded-[14px] py-4 text-[15px] font-extrabold uppercase tracking-[0.14em] transition ${
-              canDeploy
+              canDeploy || balancesError
                 ? "cursor-pointer bg-accent text-on-light shadow-[0_0_30px_-6px_var(--color-accent)] hover:brightness-110"
                 : "bg-white/[0.05] text-fg-muted shadow-[inset_0_0_0_1px_var(--color-line-slate)]"
             }`}

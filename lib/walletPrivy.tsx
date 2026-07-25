@@ -24,8 +24,9 @@ import {
   useWallets,
 } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPublicClient, erc20Abi, http, type EIP1193Provider } from "viem";
-import { CHAIN, CONTRACTS, RPC_URL } from "@/lib/contracts";
+import { createPublicClient, erc20Abi, type EIP1193Provider } from "viem";
+import { balanceRetryDelayMs } from "@/lib/balanceRetry";
+import { CHAIN, chainReadTransport, CONTRACTS } from "@/lib/contracts";
 import { fmtToken, fromWei } from "@/lib/format";
 import type {
   Address,
@@ -139,10 +140,29 @@ function Bridge({ children }: { children: React.ReactNode }) {
   const [balancesTick, setBalancesTick] = useState(0);
   const refreshBalances = useCallback(() => setBalancesTick((t) => t + 1), []);
 
+  // Failed reads retry themselves on a backoff. Without this, one blocked
+  // read was terminal: refreshBalances() only fires after a transaction, and
+  // the deploy CTA is disabled until the balance is known, so the user had
+  // no path back (live incident, 4 users, 2026-07-25).
+  const retryAttempt = useRef(0);
+  const retryAddr = useRef<Address | null>(null);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (status !== "connected" || !address) return;
     let cancelled = false;
-    const client = createPublicClient({ chain: CHAIN, transport: http(RPC_URL) });
+    if (retryAddr.current !== address) {
+      // New wallet, fresh schedule — an old wallet's failures are not
+      // evidence about this one.
+      retryAddr.current = address;
+      retryAttempt.current = 0;
+    }
+    // Fails over across RPC_URLS (the official host challenges some
+    // residential/CGNAT networks by IP reputation; a fallback host answers).
+    const client = createPublicClient({
+      chain: CHAIN,
+      transport: chainReadTransport(),
+    });
     (async () => {
       try {
         const [ethWei, peaWei] = await Promise.all([
@@ -154,23 +174,37 @@ function Bridge({ children }: { children: React.ReactNode }) {
             args: [address],
           }),
         ]);
-        if (!cancelled)
+        if (!cancelled) {
+          retryAttempt.current = 0;
           setFetched({
             addr: address,
             result: { data: toBalancesVM(ethWei, peaWei), status: "live" },
           });
+        }
       } catch {
-        if (!cancelled)
+        if (!cancelled) {
           setFetched({
             addr: address,
             result: { data: undefined, status: "error" },
           });
+          const delay = balanceRetryDelayMs(retryAttempt.current);
+          retryAttempt.current += 1;
+          retryTimer.current = setTimeout(
+            () => setBalancesTick((t) => t + 1),
+            delay,
+          );
+        }
       }
     })();
     return () => {
       cancelled = true;
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = null;
+      }
     };
-    // balancesTick: deliberate extra dep — refreshBalances() re-reads.
+    // balancesTick: deliberate extra dep — refreshBalances() and the retry
+    // timer both re-read through it.
   }, [status, address, balancesTick]);
 
   const balances: HookResult<BalancesVM> = useMemo(
@@ -188,8 +222,7 @@ function Bridge({ children }: { children: React.ReactNode }) {
   const [discordError, setDiscordError] = useState<string | null>(null);
   const { linkDiscord } = useLinkAccount({
     onSuccess: () => setDiscordError(null),
-    onError: () =>
-      setDiscordError("Discord linking is unavailable right now."),
+    onError: () => setDiscordError("Discord linking is unavailable right now."),
   });
   const discord = useMemo(
     () => ({
@@ -211,7 +244,13 @@ function Bridge({ children }: { children: React.ReactNode }) {
       },
       error: discordError,
     }),
-    [user?.discord?.username, user?.discord?.subject, linkDiscord, unlinkDiscord, discordError],
+    [
+      user?.discord?.username,
+      user?.discord?.subject,
+      linkDiscord,
+      unlinkDiscord,
+      discordError,
+    ],
   );
 
   // ── Tx-signing seam: the connected wallet's EIP-1193 provider (embedded
@@ -239,7 +278,17 @@ function Bridge({ children }: { children: React.ReactNode }) {
       getEthereumProvider,
       getAccessToken,
     }),
-    [status, address, connect, disconnect, balances, refreshBalances, discord, getEthereumProvider, getAccessToken],
+    [
+      status,
+      address,
+      connect,
+      disconnect,
+      balances,
+      refreshBalances,
+      discord,
+      getEthereumProvider,
+      getAccessToken,
+    ],
   );
 
   return (
@@ -285,7 +334,9 @@ export function PrivyWalletProvider({
           walletChainType: "ethereum-only",
         },
         loginMethods: ["wallet", "email"],
-        embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
+        embeddedWallets: {
+          ethereum: { createOnLogin: "users-without-wallets" },
+        },
         // Robinhood Chain (lib/contracts.ts) — embedded wallets sign on it
         // and injected wallets are prompted to add/switch to it.
         defaultChain: CHAIN,

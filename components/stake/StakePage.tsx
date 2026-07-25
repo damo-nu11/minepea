@@ -150,8 +150,16 @@ function StakePageSim() {
             <span className="flex items-center gap-2 text-[15px] text-fg-muted">
               <PeaIcon size={16} />
               <span className="tnum">
-                {fmtToken(available, 2)} PEA{" "}
-                {tab === "withdraw" ? "staked" : ""}
+                {/* Deposit reads the wallet over RPC; a FAILED read must not
+                    render as "0.00 PEA" (a user with tokens onchain was told
+                    he had none, 2026-07-25). Withdraw reads the staked
+                    position from the backend, a different path. */}
+                {/* 3dp (user 2026-07-25): at 2dp a 1.3844 PEA balance reads
+                    1.38 and MAXing it looks like it left dust behind. */}
+                {tab === "deposit" && balances.status === "error"
+                  ? "—"
+                  : fmtToken(available, 3)}{" "}
+                PEA {tab === "withdraw" ? "staked" : ""}
               </span>
             </span>
           }
@@ -415,8 +423,16 @@ function StakePageLive() {
             <span className="flex items-center gap-2 text-[15px] text-fg-muted">
               <PeaIcon size={16} />
               <span className="tnum">
-                {fmtToken(available, 2)} PEA{" "}
-                {tab === "withdraw" ? "staked" : ""}
+                {/* Deposit reads the wallet over RPC; a FAILED read must not
+                    render as "0.00 PEA" (a user with tokens onchain was told
+                    he had none, 2026-07-25). Withdraw reads the staked
+                    position from the backend, a different path. */}
+                {/* 3dp (user 2026-07-25): at 2dp a 1.3844 PEA balance reads
+                    1.38 and MAXing it looks like it left dust behind. */}
+                {tab === "deposit" && balances.status === "error"
+                  ? "—"
+                  : fmtToken(available, 3)}{" "}
+                PEA {tab === "withdraw" ? "staked" : ""}
               </span>
             </span>
           }

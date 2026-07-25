@@ -7,20 +7,22 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
-  http,
   type EIP1193Provider,
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { CHAIN, RPC_URL } from "@/lib/contracts";
+import { CHAIN, chainReadTransport } from "@/lib/contracts";
 
 let publicClient: PublicClient | null = null;
 
-/** Shared read client over the public RPC (view calls, receipts, gas). */
+/** Shared read client for view calls, receipts and gas. Fails over across
+ * RPC_URLS: simulation and receipt-wait errors here surfaced to users as
+ * "HTTP request failed" and receipt timeouts whenever their network could
+ * not reach the one official host. */
 export function getPublicClient(): PublicClient {
   publicClient ??= createPublicClient({
     chain: CHAIN,
-    transport: http(RPC_URL),
+    transport: chainReadTransport(),
   });
   return publicClient;
 }

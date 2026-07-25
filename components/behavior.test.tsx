@@ -52,7 +52,9 @@ function fixtureStore(
     feed: feedRounds.map((roundId, i) => ({
       id: i + 1,
       roundId,
-      miner: `0x${String(i + 1).repeat(4).padEnd(40, "0")}` as `0x${string}`,
+      miner: `0x${String(i + 1)
+        .repeat(4)
+        .padEnd(40, "0")}` as `0x${string}`,
       tiles: [0],
       amountWei: ethToWei(0.1 * (i + 1)),
       at: Date.now(),
@@ -83,7 +85,11 @@ function fixtureStore(
   };
 }
 
-function wrap(ui: React.ReactNode, wallet: WalletContextValue, store = fixtureStore()) {
+function wrap(
+  ui: React.ReactNode,
+  wallet: WalletContextValue,
+  store = fixtureStore(),
+) {
   return render(
     <EngineProvider store={store}>
       <WalletContext.Provider value={wallet}>{ui}</WalletContext.Provider>
@@ -96,8 +102,11 @@ describe("percent/MAX chips FLOOR (round-half-up regression pins)", () => {
     wrap(<StakePage />, walletCtx(1, 0.0000076));
     fireEvent.click(screen.getByRole("button", { name: "25%" }));
     expect(
-      (screen.getByRole("textbox", { name: /PEA to deposit/i }) as HTMLInputElement)
-        .value,
+      (
+        screen.getByRole("textbox", {
+          name: /PEA to deposit/i,
+        }) as HTMLInputElement
+      ).value,
     ).toBe("0.000001");
   });
 
@@ -106,8 +115,11 @@ describe("percent/MAX chips FLOOR (round-half-up regression pins)", () => {
     fireEvent.click(screen.getByRole("button", { name: "ALL" }));
     fireEvent.click(screen.getByRole("button", { name: "MAX" }));
     expect(
-      (screen.getByRole("textbox", { name: /ETH per tile/i }) as HTMLInputElement)
-        .value,
+      (
+        screen.getByRole("textbox", {
+          name: /ETH per tile/i,
+        }) as HTMLInputElement
+      ).value,
     ).toBe("0.0976");
   });
 });
@@ -199,9 +211,7 @@ describe("MinersFeed previous-rounds-only filter + rewards", () => {
       wrap(<MinersFeed />, ctx, fixtureStore([99]));
       expect(screen.queryByText("peamaxi")).not.toBeInTheDocument();
       expect(screen.getByText("0x1111...0000")).toBeInTheDocument();
-      expect(
-        document.querySelector('img[src^="data:image/jpeg"]'),
-      ).toBeNull();
+      expect(document.querySelector('img[src^="data:image/jpeg"]')).toBeNull();
     } finally {
       localStorage.clear();
     }
@@ -239,6 +249,50 @@ describe("MinersFeed previous-rounds-only filter + rewards", () => {
   });
 });
 
+describe("balance read failure surfaces (RPC incident 2026-07-25)", () => {
+  // A failed read used to render identically to a loading one: the Mine CTA
+  // said "Checking balance..." forever and the Stake deposit tab said
+  // "0.00 PEA" to a wallet holding tokens onchain. Error is now a first-
+  // class state with the CTA as the retry control.
+  const errorCtx = () => {
+    const ctx = walletCtx(1, 2.5);
+    ctx.balances = { data: undefined, status: "error" };
+    return ctx;
+  };
+
+  it("Mine: the CTA becomes the retry control and re-reads on click", () => {
+    const ctx = errorCtx();
+    let refreshed = 0;
+    ctx.refreshBalances = () => {
+      refreshed += 1;
+    };
+    wrap(<MinePage />, ctx);
+    const btn = screen.getByRole("button", { name: "Retry balance check" });
+    // A clickable retry control must not announce itself as disabled to
+    // assistive tech (audit catch: aria-disabled tracked canDeploy alone).
+    expect(btn).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(btn);
+    expect(refreshed).toBe(1);
+    // The readout shows a dash, never a confident zero.
+    expect(screen.getByText(/Ξ —/)).toBeInTheDocument();
+    expect(screen.queryByText("Checking balance...")).not.toBeInTheDocument();
+  });
+
+  it("Stake: the deposit available line shows a dash, not 0.00 PEA", () => {
+    wrap(<StakePage />, errorCtx());
+    expect(screen.getByText(/—\s*PEA/)).toBeInTheDocument();
+    expect(screen.queryByText(/0\.00 PEA/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Stake available balance precision", () => {
+  it("shows 3dp so a MAXed balance does not look like it left dust (user 2026-07-25)", () => {
+    wrap(<StakePage />, walletCtx(1, 1.3844));
+    // 2dp would render 1.38; the trailing digit is the point.
+    expect(screen.getByText(/1\.384\s*PEA/)).toBeInTheDocument();
+  });
+});
+
 describe("ConnectButton profile panel", () => {
   it("connected click opens the drawer (no disconnect); Disconnect lives inside", () => {
     const ctx = walletCtx(1, 2.5);
@@ -253,14 +307,26 @@ describe("ConnectButton profile panel", () => {
     expect(screen.getByText("Portfolio")).toBeInTheDocument();
     // Full PEA portfolio: Wallet + Staked/Harvested/Unharvested + Total
     // (harvest terminology, user 2026-07-18).
-    for (const row of ["Wallet", "Staked", "Harvested", "Unharvested", "Total"]) {
+    for (const row of [
+      "Wallet",
+      "Staked",
+      "Harvested",
+      "Unharvested",
+      "Total",
+    ]) {
       expect(screen.getByText(row)).toBeInTheDocument();
     }
     expect(screen.getAllByText("2.5")).toHaveLength(2); // Wallet AND Total (others 0)
     // Icon-only controls with accessible names; RPC row removed.
-    expect(screen.getByRole("button", { name: "Copy address" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit username" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Upload profile picture" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy address" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit username" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Upload profile picture" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("RPC")).toBeNull();
     expect(disconnected).toBe(false);
 
