@@ -58,7 +58,7 @@ export function toRoundVM(wire: RoundWire): RoundVM {
     phase: wire.phase,
     tiles: wire.tiles.map(toTileVM),
     totalDeployedEth: totalEth,
-    totalDeployedFormatted: fmtTokenSmart(totalEth, 1),
+    totalDeployedFormatted: fmtTokenSmart(totalEth, 2),
     motherlodePea: motherlode,
     motherlodeFormatted: fmtTokenSmart(motherlode, 1),
     winningTile: wire.winningTile,
