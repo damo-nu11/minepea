@@ -11,7 +11,8 @@
  *   — the mock engine simply has no such method).
  * - The per-user SSE stream GET /api/user/:address/events (claims,
  *   checkpoints, AutoMiner runs, staking moves) → toasts + targeted refresh.
- * - The strict-rate-limited REST trio (5/min per IP — NEVER polled):
+ * - The strict-rate-limited REST trio (small shared per-IP pool — NEVER
+ *   polled; retries obey the server's Retry-After):
  *     /api/user/:address/rewards   → useRewards()
  *     /api/staking/:address        → useStakingPosition()
  *     /api/automine/:address       → useAutomine()
@@ -364,12 +365,35 @@ interface UserDataApi {
   refresh(kind: Kind): void;
 }
 
+/**
+ * How long to wait after a 429 before retrying.
+ *
+ * The backend SAYS how long in its Retry-After header, and it says seconds
+ * (measured live 2026-07-25: 1-3s). Ignoring it for a flat 61s is what
+ * turned a two-second pool blip into the multi-minute blank Staked figure
+ * users hit when switching wallets. The 61s survives only as the fallback
+ * for a missing or unreadable header, and as the cap on a hostile one.
+ * +250ms lands the retry just after the window actually opens.
+ */
+export function strictRetryDelayMs(retryAfter: string | null): number {
+  const seconds = Number(retryAfter);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 61_000;
+  return Math.min(61_000, Math.ceil(seconds) * 1000 + 250);
+}
+
 /** Everything runStrictFetch needs from the provider, injected per call. */
-interface FetchCtx {
+export interface FetchCtx {
   addrRef: { current: Address | null };
-  inflight: Set<Kind>;
+  /** KEYED BY `kind:addr`, never by kind alone: a kind-only key made wallet
+   * B's fetch silently no-op while wallet A's was still in flight, with
+   * nothing scheduled to re-ask — Staked stayed blank until an unrelated
+   * SSE reconnect (live incident, 2026-07-26). */
+  inflight: Set<string>;
   lastFetch: Map<string, number>;
-  trailing: Map<Kind, ReturnType<typeof setTimeout>>;
+  trailing: Map<string, ReturnType<typeof setTimeout>>;
+  /** Abort signal for the CURRENT identity's fetches; the provider aborts on
+   * switch/unmount so a departed wallet's requests stop mattering. */
+  signal(): AbortSignal | undefined;
   apply(kind: Kind, addrAt: Address, body: unknown): void;
   markError(kind: Kind, addrAt: Address): void;
 }
@@ -378,22 +402,23 @@ interface FetchCtx {
  * One throttled fetch of a strict endpoint (module-level — runs only from
  * effects/handlers/timers, never during render). If inside the throttle
  * window, schedules a single trailing refetch at the boundary — event-driven
- * updates stay eventually consistent without burning the 5/min budget.
+ * updates stay eventually consistent without burning the strict budget.
+ * Exported for tests; production callers go through the provider's fetchKind.
  */
-function runStrictFetch(kind: Kind, ctx: FetchCtx): void {
+export function runStrictFetch(kind: Kind, ctx: FetchCtx): void {
   const addrAt = ctx.addrRef.current;
   if (!addrAt || !API_URL) return;
   const key = `${kind}:${addrAt}`;
   const now = Date.now();
   const last = ctx.lastFetch.get(key) ?? 0;
-  if (ctx.inflight.has(kind)) return;
+  if (ctx.inflight.has(key)) return;
   if (now - last < MIN_REFETCH_MS) {
-    if (!ctx.trailing.has(kind)) {
+    if (!ctx.trailing.has(key)) {
       ctx.trailing.set(
-        kind,
+        key,
         setTimeout(
           () => {
-            ctx.trailing.delete(kind);
+            ctx.trailing.delete(key);
             runStrictFetch(kind, ctx);
           },
           MIN_REFETCH_MS - (now - last),
@@ -402,21 +427,22 @@ function runStrictFetch(kind: Kind, ctx: FetchCtx): void {
     }
     return;
   }
-  ctx.inflight.add(kind);
+  ctx.inflight.add(key);
   ctx.lastFetch.set(key, now);
-  void fetch(`${API_URL}${PATHS[kind](addrAt)}`)
+  void fetch(`${API_URL}${PATHS[kind](addrAt)}`, { signal: ctx.signal() })
     .then(async (res) => {
       if (res.status === 429) {
-        // Shared strict pool exhausted — retry once the window resets
-        // instead of surfacing an error for a self-healing condition.
-        if (!ctx.trailing.has(kind)) {
+        // Shared strict pool exhausted — retry when the SERVER says the
+        // window opens, not a minute later for a self-healing condition.
+        const delay = strictRetryDelayMs(res.headers.get("retry-after"));
+        if (!ctx.trailing.has(key)) {
           ctx.trailing.set(
-            kind,
+            key,
             setTimeout(() => {
-              ctx.trailing.delete(kind);
+              ctx.trailing.delete(key);
               ctx.lastFetch.delete(key); // bypass the throttle for the retry
               runStrictFetch(kind, ctx);
-            }, 61_000),
+            }, delay),
           );
         }
         return;
@@ -424,9 +450,14 @@ function runStrictFetch(kind: Kind, ctx: FetchCtx): void {
       if (!res.ok) throw new Error(`${kind} failed: ${res.status}`);
       ctx.apply(kind, addrAt, await res.json());
     })
-    .catch(() => ctx.markError(kind, addrAt))
+    .catch((err) => {
+      // An aborted fetch is the identity leaving, not a failure: the next
+      // identity's own trio is already on its way.
+      if (err instanceof Error && err.name === "AbortError") return;
+      ctx.markError(kind, addrAt);
+    })
     .finally(() => {
-      ctx.inflight.delete(kind);
+      ctx.inflight.delete(key);
     });
 }
 
@@ -479,9 +510,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     setAutomine(LOADING);
   }
 
-  const inflight = useRef(new Set<Kind>());
+  const inflight = useRef(new Set<string>());
   const lastFetch = useRef(new Map<string, number>());
-  const trailing = useRef(new Map<Kind, ReturnType<typeof setTimeout>>());
+  const trailing = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // One controller per connected identity; the effect below replaces it on
+  // switch and aborts the old one, so a departed wallet's fetches die
+  // instead of racing the new wallet's.
+  const abortRef = useRef<AbortController | null>(null);
 
   const applyResult = useCallback(
     (kind: Kind, addrAt: Address, body: unknown) => {
@@ -550,6 +585,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         inflight: inflight.current,
         lastFetch: lastFetch.current,
         trailing: trailing.current,
+        signal: () => abortRef.current?.signal,
         apply: applyResult,
         markError,
       }),
@@ -575,6 +611,10 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!connected || !addr || !API_URL) return;
     let alive = true;
+    // Fresh controller for THIS identity; cleanup aborts it so the previous
+    // wallet's in-flight fetches cannot linger into the next one's session.
+    const ac = new AbortController();
+    abortRef.current = ac;
 
     fetchKind("rewards");
     fetchKind("staking");
@@ -745,6 +785,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     });
 
     const trailingTimers = trailing.current;
+    const inflightSlots = inflight.current;
     // Poll rewards only, and only while the tab is visible: a background tab
     // spending the shared budget starves the foreground one.
     const pollRewards = () => {
@@ -756,6 +797,14 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       alive = false;
+      // Abort only OUR controller: under StrictMode's double-run the second
+      // effect has already installed its own, which must survive this cleanup.
+      ac.abort();
+      if (abortRef.current === ac) abortRef.current = null;
+      // Free the slots NOW rather than when the aborted fetches' finally
+      // blocks run: the next identity's trio fires synchronously after this
+      // cleanup and must not find the set still occupied by dead requests.
+      inflightSlots.clear();
       clearInterval(rewardsTimer);
       document.removeEventListener("visibilitychange", pollRewards);
       es.close();
