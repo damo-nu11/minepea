@@ -196,14 +196,15 @@ function StakePageSim() {
         {ctaLabel}
       </button>
 
-      {/* Projected earnings for the typed amount, or the current stake when
-          the field is empty — an existing staker never sees a blank card.
-          Sits BELOW the CTA (user 2026-07-26). */}
+      {/* Projected earnings for the TYPED amount only: the card's field and
+          its output must always agree — a projection of the current stake
+          under a visible "0" read as a bug (user 2026-07-26). Sits BELOW
+          the CTA (user 2026-07-26). */}
       {tab === "deposit" && (
         <StakeProjection
           amount={amount}
           onAmountChange={setAmount}
-          amountPea={amountNum > 0 ? amountNum : stakedPea}
+          amountPea={amountNum}
           aprPct={aprPctForProjection}
           peaUsd={peaUsdForProjection}
         />
@@ -490,9 +491,10 @@ function StakePageLive() {
         {ctaLabel}
       </button>
 
-      {/* Projected earnings for the typed amount, or the current stake when
-          the field is empty — an existing staker never sees a blank card.
-          Sits BELOW the CTA (user 2026-07-26). */}
+      {/* Projected earnings for the TYPED amount only: the card's field and
+          its output must always agree — a projection of the current stake
+          under a visible "0" read as a bug (user 2026-07-26). Sits BELOW
+          the CTA (user 2026-07-26). */}
       {tab === "deposit" && (
         <StakeProjection
           amount={amount}
@@ -500,7 +502,7 @@ function StakePageLive() {
             setAmount(v);
             setExactWei(null);
           }}
-          amountPea={amountNum > 0 ? amountNum : stakedPea}
+          amountPea={amountNum}
           aprPct={aprPctForProjection}
           peaUsd={peaUsdForProjection}
         />

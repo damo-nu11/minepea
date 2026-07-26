@@ -3,9 +3,11 @@
 /**
  * As-you-type yield projection under the deposit input (plan 2026-07-26).
  *
- * Projects the typed amount, or the user's current stake when the field is
- * empty, across selectable windows at the CURRENT 7-day-average APR. Simple
- * interest, per the site-wide APR-not-APY rule. The card stays visible on
+ * Projects the typed amount across selectable windows at the CURRENT
+ * 7-day-average APR. The typed amount ONLY: an earlier fallback projected
+ * the connected wallet's stake under an empty field, and a nonzero output
+ * below a visible "0" read as a bug (user 2026-07-26). Simple interest,
+ * per the site-wide APR-not-APY rule. The card stays visible on
  * the deposit tab even before a wallet or an amount exists (user
  * 2026-07-26): the audience for a calculator is the visitor who has not
  * staked yet, so an empty field prompts for an amount rather than hiding
@@ -40,7 +42,7 @@ export function StakeProjection({
   amount: string;
   /** Editor for the shared amount (the card's own field drives it). */
   onAmountChange(next: string): void;
-  /** Amount being projected (typed amount, else current stake). */
+  /** Amount being projected: the typed amount, as a number. */
   amountPea: number;
   /** Current APR in percent, or null while unknown. */
   aprPct: number | null;
