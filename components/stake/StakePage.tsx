@@ -35,6 +35,8 @@ import { usePrices } from "@/lib/hooks/useGame";
 import { ANALYTICS } from "@/lib/mock/analytics";
 import { ethToWei } from "@/lib/mock/engine";
 import { useStakingTxs } from "@/lib/tx/hooks";
+import { StakeProjection } from "@/components/stake/StakeProjection";
+import { TickingYield } from "@/components/stake/TickingYield";
 import { useStakingPosition, useStakingStatsTick } from "@/lib/user/userData";
 import { useBalances, useWallet } from "@/lib/wallet";
 
@@ -101,6 +103,10 @@ function StakePageSim() {
   // rather than asserting a dollar TVL the site cannot know.
   const peaUsd = prices.data?.peaUsd ?? 0;
   const tvlUsd = peaUsd > 0 ? globalDeposits * peaUsd : null;
+  // Projection inputs: the sim's own APR and the same price the TVL row
+  // uses, so the calculator agrees with the Summary beside it.
+  const aprPctForProjection = MOCK_APR;
+  const peaUsdForProjection = peaUsd;
 
   const ctaLabel = pending
     ? tab === "deposit"
@@ -190,6 +196,19 @@ function StakePageSim() {
         {ctaLabel}
       </button>
 
+      {/* Projected earnings for the typed amount, or the current stake when
+          the field is empty — an existing staker never sees a blank card.
+          Sits BELOW the CTA (user 2026-07-26). */}
+      {tab === "deposit" && (
+        <StakeProjection
+          amount={amount}
+          onAmountChange={setAmount}
+          amountPea={amountNum > 0 ? amountNum : stakedPea}
+          aprPct={aprPctForProjection}
+          peaUsd={peaUsdForProjection}
+        />
+      )}
+
       {/* Summary */}
       <section className="mb-16 mt-24">
         <h2 className="font-wordmark text-[23px] font-bold tracking-[-0.01em] text-fg">
@@ -270,6 +289,7 @@ interface StakingStats {
 function StakePageLive() {
   const wallet = useWallet();
   const balances = useBalances();
+  const prices = usePrices();
   const position = useStakingPosition();
   const { approve, deposit, withdraw, claimYield, compound, readAllowance } =
     useStakingTxs();
@@ -321,6 +341,10 @@ function StakePageLive() {
   const available = tab === "deposit" ? walletPea : stakedPea;
   const amountNum = parseFloat(amount) || 0;
   const amountWei = BigInt(exactWei ?? ethToWei(amountNum));
+  // Projection inputs: the SAME APR the Summary row prints (null while
+  // loading renders dashes, never a confident zero) and the live PEA price.
+  const aprPctForProjection = stats ? Number(stats.apr) : null;
+  const peaUsdForProjection = prices.data?.peaUsd ?? 0;
 
   const pending = approve.pending || deposit.pending || withdraw.pending;
   const insufficient = amountNum > available && amountNum > 0;
@@ -466,6 +490,22 @@ function StakePageLive() {
         {ctaLabel}
       </button>
 
+      {/* Projected earnings for the typed amount, or the current stake when
+          the field is empty — an existing staker never sees a blank card.
+          Sits BELOW the CTA (user 2026-07-26). */}
+      {tab === "deposit" && (
+        <StakeProjection
+          amount={amount}
+          onAmountChange={(v) => {
+            setAmount(v);
+            setExactWei(null);
+          }}
+          amountPea={amountNum > 0 ? amountNum : stakedPea}
+          aprPct={aprPctForProjection}
+          peaUsd={peaUsdForProjection}
+        />
+      )}
+
       {/* Summary */}
       <section className="mb-16 mt-24">
         <h2 className="font-wordmark text-[23px] font-bold tracking-[-0.01em] text-fg">
@@ -539,7 +579,15 @@ function StakePageLive() {
             <dd className="flex items-center gap-2.5">
               <PeaIcon size={16} className="text-accent" />
               <span className="tnum text-[17px] font-semibold text-fg">
-                {position.data?.pendingYieldFormatted ?? "—"}
+                {/* Ticks between real readings; chain-polled truth snaps it.
+                    6dp so small stakes show motion (plan 2026-07-26). */}
+                <TickingYield
+                  pendingYield={position.data?.pendingYield}
+                  stakedPea={stakedPea}
+                  aprPct={aprPctForProjection}
+                  address={wallet.address}
+                  pollChain
+                />
               </span>
               <button
                 type="button"

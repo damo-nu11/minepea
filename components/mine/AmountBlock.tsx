@@ -11,7 +11,7 @@
  * again.
  */
 
-const AMOUNT_RE = /^\d{0,4}(\.\d{0,6})?$/;
+export const AMOUNT_RE = /^\d{0,4}(\.\d{0,6})?$/;
 
 export function AmountBlock({
   value,
