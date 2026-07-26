@@ -8,8 +8,13 @@
  * getPendingRewards every POLL_MS — a CHAIN call through the failover
  * transport, so it costs the backend's strict pool nothing and inherits the
  * multi-host resilience. Between truths the value grows at a conservative
- * estimated rate and SNAPS to every real reading (lib/yieldTicker.ts owns
- * that math and its honesty rules).
+ * estimated rate and SNAPS to every accepted reading (lib/yieldTicker.ts
+ * owns that math and its honesty rules). The rate is measured across a
+ * rolling WINDOW of readings, never a consecutive pair — the chain value
+ * steps once per distribution, so pairs inside a flat step froze the
+ * display (user 2026-07-26 evening). Small downward readings are stale
+ * news from the slower source and are ignored; only a claim-sized drop
+ * (below CLAIM_DROP_FACTOR of the last reading) resets the display.
  *
  * Six decimals: enough for a 1-PEA staker to see movement within seconds
  * without the number reading as noise. Full precision rides on the title.
@@ -23,7 +28,11 @@ import { fromWei } from "@/lib/format";
 import type { Address } from "@/lib/types";
 import {
   anchorFromTruth,
+  CLAIM_DROP_FACTOR,
+  observedRate,
+  pruneTruths,
   tickedValue,
+  type TruthReading,
   type YieldAnchor,
 } from "@/lib/yieldTicker";
 
@@ -50,7 +59,8 @@ export function TickingYield({
 }) {
   const [anchor, setAnchor] = useState<YieldAnchor | null>(null);
   const [nowMs, setNowMs] = useState(0);
-  const prevTruth = useRef<{ value: number; atMs: number } | null>(null);
+  /** Rolling window of accepted readings; the rate is measured across it. */
+  const truthsRef = useRef<TruthReading[]>([]);
 
   // Rate inputs live in a ref (synced in an effect, never during render) so
   // a truth arriving mid-poll uses the freshest stake/APR without re-arming
@@ -63,21 +73,35 @@ export function TickingYield({
   // Stable identity: reads only refs and setters, so the consuming effects
   // can list it as a dep without re-running on every render.
   const applyTruth = useCallback((value: number) => {
-    const truth = { value, atMs: Date.now() };
+    const atMs = Date.now();
+    const truths = truthsRef.current;
+    const prev = truths[truths.length - 1];
+    if (prev && value < prev.value) {
+      if (value < prev.value * CLAIM_DROP_FACTOR) {
+        // A claim/compound zeroed the bucket: snap down NOW, fresh window.
+        truthsRef.current = [{ value, atMs }];
+      } else {
+        // Stale reading from the slower source. Accrual is monotone, so a
+        // small dip is old news and must not dent a climbing display.
+        return;
+      }
+    } else {
+      truthsRef.current = pruneTruths([...truths, { value, atMs }], atMs);
+    }
     setAnchor(
       anchorFromTruth(
-        prevTruth.current,
-        truth,
+        observedRate(truthsRef.current),
+        { value, atMs },
         rateInputs.current.stakedPea,
         rateInputs.current.aprPct,
       ),
     );
-    prevTruth.current = truth;
-    setNowMs(truth.atMs);
+    setNowMs(atMs);
   }, []);
 
-  // Provider truth: every position update (fetch, SSE, claim/compound zeroing)
-  // re-anchors. A DOWNWARD move (claim) snaps instantly by construction.
+  // Provider truth: every position update (fetch, SSE, claim/compound
+  // zeroing) feeds the window. A claim-sized drop snaps instantly; a small
+  // stale dip is ignored inside applyTruth.
   useEffect(() => {
     if (pendingYield === undefined) return;
     applyTruth(pendingYield);

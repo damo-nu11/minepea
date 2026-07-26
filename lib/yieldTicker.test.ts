@@ -1,15 +1,21 @@
 /**
  * Ticker math pins. The honesty rules under test: closed-form display (a
  * hidden tab catches up exactly), truth always re-anchors, the rate runs
- * CONSERVATIVE so snaps land upward, and a downward truth (claim) is a
- * reset, never a rate.
+ * CONSERVATIVE so snaps land upward, and the rate is measured across a
+ * rolling window — never a consecutive pair, which on a stepwise chain
+ * value reads 0 inside a flat step (frozen display) and several times the
+ * true rate across a step (sprint then downward snap).
  */
 
 import { describe, expect, it } from "vitest";
 import {
   anchorFromTruth,
   aprRatePerSec,
-  ratePerSecFromDelta,
+  FLAT_SPAN_MS,
+  observedRate,
+  pruneTruths,
+  RATE_MIN_SPAN_MS,
+  RATE_WINDOW_MS,
   TICK_RATE_FACTOR,
   tickedValue,
 } from "@/lib/yieldTicker";
@@ -42,43 +48,88 @@ describe("aprRatePerSec", () => {
   });
 });
 
-describe("ratePerSecFromDelta", () => {
-  it("derives the observed rate between two readings", () => {
-    const r = ratePerSecFromDelta(
+describe("observedRate", () => {
+  it("measures the average rate across a window spanning distributions", () => {
+    const r = observedRate([
+      { value: 10, atMs: 0 },
+      { value: 10.2, atMs: 30_000 },
+      { value: 10.7, atMs: 70_000 },
+    ]);
+    expect(r).toBeCloseTo(0.01, 12); // 0.7 PEA over 70s
+  });
+
+  it("refuses a rate from a window too short to trust", () => {
+    // A short window straddling ONE step reads several times the true
+    // rate: the display would sprint, then snap DOWNWARD at the next
+    // truth. That is noise, not a rate.
+    const r = observedRate([
       { value: 1, atMs: 0 },
-      { value: 2, atMs: 20_000 },
-    );
-    expect(r).toBeCloseTo(0.05, 12);
+      { value: 2, atMs: RATE_MIN_SPAN_MS - 1_000 },
+    ]);
+    expect(r).toBeNull();
   });
 
-  it("a flat pool observes rate 0, which stops the ticking honestly", () => {
-    expect(
-      ratePerSecFromDelta({ value: 3, atMs: 0 }, { value: 3, atMs: 30_000 }),
-    ).toBe(0);
+  it("a briefly flat window is the gap between distributions, not a rate", () => {
+    // Null (fall back to the APR rate, keep ticking) — NOT 0, which froze
+    // the display every time two readings landed inside one flat step.
+    const r = observedRate([
+      { value: 3, atMs: 0 },
+      { value: 3, atMs: FLAT_SPAN_MS - 10_000 },
+    ]);
+    expect(r).toBeNull();
   });
 
-  it("a claim (value dropped) and a same-instant pair yield no rate", () => {
+  it("a sustained flat window is a genuinely idle pool: rate 0", () => {
+    const r = observedRate([
+      { value: 3, atMs: 0 },
+      { value: 3, atMs: FLAT_SPAN_MS + 10_000 },
+    ]);
+    expect(r).toBe(0);
+  });
+
+  it("yields nothing without two readings or on a decrease", () => {
+    expect(observedRate([])).toBeNull();
+    expect(observedRate([{ value: 1, atMs: 0 }])).toBeNull();
     expect(
-      ratePerSecFromDelta({ value: 5, atMs: 0 }, { value: 0, atMs: 10_000 }),
-    ).toBeNull();
-    expect(
-      ratePerSecFromDelta({ value: 1, atMs: 500 }, { value: 2, atMs: 500 }),
+      observedRate([
+        { value: 5, atMs: 0 },
+        { value: 4, atMs: 70_000 },
+      ]),
     ).toBeNull();
   });
 });
 
+describe("pruneTruths", () => {
+  it("drops readings older than the window, keeps the rest in order", () => {
+    const now = 130_000;
+    expect(
+      pruneTruths(
+        [
+          { value: 1, atMs: now - RATE_WINDOW_MS - 1 },
+          { value: 2, atMs: now - 30_000 },
+          { value: 3, atMs: now },
+        ],
+        now,
+      ),
+    ).toEqual([
+      { value: 2, atMs: now - 30_000 },
+      { value: 3, atMs: now },
+    ]);
+  });
+});
+
 describe("anchorFromTruth", () => {
-  it("prefers the observed rate over the APR estimate", () => {
+  it("prefers the observed window rate over the APR estimate", () => {
     const a = anchorFromTruth(
-      { value: 1, atMs: 0 },
-      { value: 2, atMs: 10_000 }, // observed 0.1/s
+      0.1, // observed across the window
+      { value: 2, atMs: 10_000 },
       1_000_000, // stake so large the APR rate would dwarf it
       1_000,
     );
     expect(a.ratePerSec).toBeCloseTo(0.1 * TICK_RATE_FACTOR, 12);
   });
 
-  it("falls back to the APR rate until two readings exist", () => {
+  it("falls back to the APR rate while the window is untrusted", () => {
     const a = anchorFromTruth(null, { value: 5, atMs: 0 }, 3_153.6, 100);
     expect(a.ratePerSec).toBeCloseTo(0.0001 * TICK_RATE_FACTOR, 15);
     expect(a.value).toBe(5);
@@ -92,14 +143,10 @@ describe("anchorFromTruth", () => {
   });
 
   it("a claim resets the anchor to the new low value", () => {
-    const a = anchorFromTruth(
-      { value: 5, atMs: 0 },
-      { value: 0, atMs: 10_000 }, // claim: observed is null
-      100,
-      500,
-    );
+    // The component clears the window on a claim, so observed is null and
+    // ticking resumes from zero at the APR rate.
+    const a = anchorFromTruth(null, { value: 0, atMs: 10_000 }, 100, 500);
     expect(a.value).toBe(0);
-    // Rate falls back to APR, so ticking resumes from zero.
     expect(a.ratePerSec).toBeGreaterThan(0);
   });
 });

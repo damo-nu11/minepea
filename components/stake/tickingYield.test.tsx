@@ -59,6 +59,39 @@ describe("TickingYield", () => {
     expect(tickerText()).toBe("5.000900");
   });
 
+  it("ignores a small stale dip from the slower truth source", () => {
+    const { rerender } = render(
+      <TickingYield
+        pendingYield={5}
+        stakedPea={3_153.6}
+        aprPct={100}
+        address={null}
+        pollChain={false}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(tickerText()).toBe("5.000900");
+    // A reading BELOW the last one but above the claim threshold is stale
+    // news (accrual is monotone): the climbing display must not dip...
+    rerender(
+      <TickingYield
+        pendingYield={4.9995}
+        stakedPea={3_153.6}
+        aprPct={100}
+        address={null}
+        pollChain={false}
+      />,
+    );
+    expect(tickerText()).toBe("5.000900");
+    // ...and the tick keeps running from the untouched anchor.
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(tickerText()).toBe("5.001800");
+  });
+
   it("a claim snaps the display down instantly", () => {
     const { rerender } = render(
       <TickingYield
