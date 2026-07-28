@@ -336,7 +336,9 @@ export const StockpotTab = memo(function StockpotTab() {
         >
           {/* WHICH stock the big chart shows (user 2026-07-28: the chart
               needs its name on it, not only in the a11y label). */}
-          <div className="mb-3 flex items-center justify-between gap-4">
+          {/* flex-wrap: on the narrowest phones the price block drops
+              below the identity instead of painting past the card. */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <span className="flex items-center gap-3">
               <StockTile ticker={chartStock.ticker} icon={chartStock.icon} />
               <span className="flex flex-col">
@@ -412,13 +414,19 @@ export const StockpotTab = memo(function StockpotTab() {
                         {s.ticker}
                       </span>
                     </span>
-                    <span className="flex items-center gap-4">
-                      <Sparkline points={history[s.ticker] ?? []} />
-                      <span className="tnum w-24 text-right text-[13.5px] font-medium text-fg">
+                    {/* Fixed-width columns must fit a 320px phone minus the
+                        tile+ticker, so the decorative sparkline yields
+                        below sm and the columns tighten (the row painted
+                        6px past the viewport at 375, found 2026-07-28). */}
+                    <span className="flex shrink-0 items-center gap-3 sm:gap-4">
+                      <span className="hidden sm:block">
+                        <Sparkline points={history[s.ticker] ?? []} />
+                      </span>
+                      <span className="tnum w-20 text-right text-[13.5px] font-medium text-fg sm:w-24">
                         {s.priceFormatted}
                       </span>
                       <span
-                        className={`tnum w-20 text-right text-[12.5px] ${
+                        className={`tnum w-16 text-right text-[12.5px] sm:w-20 ${
                           day !== null && day < 0 ? "text-danger" : "text-fg"
                         }`}
                       >

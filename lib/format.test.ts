@@ -24,6 +24,7 @@ import {
   fmtRoundId,
   fmtToken,
   fmtUsd,
+  fmtUsdCard,
   fmtUsdWhole,
   fromWei,
   relTime,
@@ -92,6 +93,20 @@ describe("fmtUsdWhole", () => {
     expect(fmtUsdWhole(1284306.7)).toBe("$1,284,307");
     expect(fmtUsdWhole(2624)).toBe("$2,624");
     expect(fmtUsdWhole(NaN)).toBe("$0");
+  });
+});
+
+describe("fmtUsdCard", () => {
+  it("stays within 7 characters at every magnitude (phone-card contract)", () => {
+    expect(fmtUsdCard(599.4)).toBe("$599");
+    expect(fmtUsdCard(1391.54)).toBe("$1,392");
+    expect(fmtUsdCard(99_999)).toBe("$99,999");
+    expect(fmtUsdCard(100_000)).toBe("$100.0K");
+    expect(fmtUsdCard(1_391_540)).toBe("$1.392M");
+    expect(fmtUsdCard(NaN)).toBe("$0");
+    for (const v of [0, 3, 599, 1391.54, 34_050, 99_999, 100_000, 999_999, 1_391_540, 987_654_321]) {
+      expect(fmtUsdCard(v).length, `${v}`).toBeLessThanOrEqual(7);
+    }
   });
 });
 

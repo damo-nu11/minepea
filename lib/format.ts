@@ -72,6 +72,18 @@ export function fmtUsdWhole(n: number): string {
 }
 
 /**
+ * USD for STAT CARD values: whole dollars to $99,999, then 4-significant-
+ * figure compact ("$100.0K", "$1.392M"). Every output is at most 7
+ * characters, which is the contract that keeps a 2-up phone card from
+ * overflowing — "$1,391.54" painted across its card's borders on mobile
+ * (user 2026-07-28). Exact figures belong to the tables, not the cards.
+ */
+export function fmtUsdCard(n: number): string {
+  if (!Number.isFinite(n)) return "$0";
+  return Math.abs(n) >= 100_000 ? `$${fmtCompactSig(n)}` : fmtUsdWhole(n);
+}
+
+/**
  * Compact to a fixed number of SIGNIFICANT figures: 243.8K, 1.183M, 12.35M.
  *
  * Fixed decimals misread across magnitudes — at 2dp, 1,183,000 flattens to a

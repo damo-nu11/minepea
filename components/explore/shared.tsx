@@ -53,16 +53,23 @@ export function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-2">
-      <div className="flex flex-col gap-3 rounded-[11px] border border-line-slate/50 p-5">
+    // @container + a cqw-clamped value: the numeral sizes off the CARD's
+    // own width, so a 2-up phone grid shrinks it instead of letting a wide
+    // Unbounded figure paint across the card border (found live on mobile,
+    // user 2026-07-28). Card USD is capped at 7 chars by fmtUsdCard; the
+    // clamp is the belt to that suspenders.
+    <div className="@container rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-2">
+      <div className="flex flex-col gap-3 rounded-[11px] border border-line-slate/50 px-3 py-5 sm:p-5">
         <span className="text-[13px] font-medium text-fg-muted">{title}</span>
         <div className="flex flex-col items-center gap-1 py-2">
           <span
-            className={`tnum text-[34px] font-bold leading-none ${accent ? "text-accent" : "text-fg"}`}
+            className={`tnum max-w-full text-[clamp(16px,12.5cqw,34px)] font-bold leading-none ${accent ? "text-accent" : "text-fg"}`}
           >
             {value}
           </span>
-          <span className="text-[13px] text-fg-muted">{caption}</span>
+          <span className="text-center text-[13px] text-fg-muted">
+            {caption}
+          </span>
         </div>
       </div>
     </div>

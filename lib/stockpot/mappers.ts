@@ -3,8 +3,11 @@
  * ladder lives HERE, one precision per data class, so no component ever
  * chooses digits ad hoc:
  *
- * - headline pot total: WHOLE dollars (bank statement, not pitch deck)
- * - secondary USD (cost, pending, deployed, paid out): fmtUsd (2dp)
+ * - STAT CARD USD (pot total, deployed, paid out): fmtUsdCard — whole
+ *   dollars to $99,999 (bank statement, not pitch deck), 4-sig compact
+ *   above; never more than 7 characters, the phone-card width contract
+ *   (cents on a lifetime flow are table detail, not card detail)
+ * - secondary USD (cost, pending): fmtUsd (2dp)
  * - per-share prices: fmtUsd (2dp)
  * - shares: fmtToken (4dp, trimmed); pending shares use fmtTokenSmart so
  *   a genuinely tiny early-session slice never renders as "0"
@@ -13,7 +16,13 @@
  * paused feed must never print a confident zero.
  */
 
-import { fmtToken, fmtTokenSmart, fmtUsd, fmtUsdWhole, fromWei } from "@/lib/format";
+import {
+  fmtToken,
+  fmtTokenSmart,
+  fmtUsd,
+  fmtUsdCard,
+  fromWei,
+} from "@/lib/format";
 import { ASSET_BY_TOKEN, STOCKPOT_ASSETS } from "@/lib/stockpot/registry";
 import {
   avgCostPerShare,
@@ -233,12 +242,12 @@ export function toStockpotVM(
   return {
     asOfMs: wire.snapshot.asOfMs,
     totalUsd: potUsd,
-    totalUsdFormatted: potUsd === null ? DASH : fmtUsdWhole(potUsd),
+    totalUsdFormatted: potUsd === null ? DASH : fmtUsdCard(potUsd),
     marketOpen,
     deployedUsd,
-    deployedUsdFormatted: deployedUsd === null ? DASH : fmtUsd(deployedUsd),
+    deployedUsdFormatted: deployedUsd === null ? DASH : fmtUsdCard(deployedUsd),
     paidOutUsd,
-    paidOutUsdFormatted: paidOutUsd === null ? DASH : fmtUsd(paidOutUsd),
+    paidOutUsdFormatted: paidOutUsd === null ? DASH : fmtUsdCard(paidOutUsd),
     buyCount: purchases.length,
     stocks,
     purchases,
