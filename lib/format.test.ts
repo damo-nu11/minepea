@@ -24,6 +24,7 @@ import {
   fmtRoundId,
   fmtToken,
   fmtUsd,
+  fmtUsdWhole,
   fromWei,
   relTime,
   shortAddr,
@@ -83,6 +84,14 @@ describe("fmtInt", () => {
   it("floors and separates", () => {
     expect(fmtInt(3000000)).toBe("3,000,000");
     expect(fmtInt(475695.9)).toBe("475,695");
+  });
+});
+
+describe("fmtUsdWhole", () => {
+  it("rounds to whole dollars with separators (bank-statement headline)", () => {
+    expect(fmtUsdWhole(1284306.7)).toBe("$1,284,307");
+    expect(fmtUsdWhole(2624)).toBe("$2,624");
+    expect(fmtUsdWhole(NaN)).toBe("$0");
   });
 });
 

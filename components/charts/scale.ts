@@ -44,20 +44,26 @@ function measureText(label: string, fontPx: number): number {
 }
 
 /**
- * Width of the y gutter, sized to its widest tick label.
+ * Y-gutter width, sized to the widest tick label — SPLIT into two halves
+ * because they must run at different times:
  *
- * A fixed gutter silently clips the leading glyph the moment a formatter emits
- * something long, which has now happened twice: a price axis lost the "$" off
- * "$280.00", and a percentage axis rendered "15000.0%" as "5000.0%", which is
- * not a cosmetic bug but a wrong number on screen.
+ * - `axisPadEstimate` is PURE per-glyph math, identical on the server and
+ *   every client render. It is the only sizing the initial render may use:
+ *   mixing canvas measurement into the render path made the server say
+ *   x=54 while the client said 55, a hydration mismatch on every chart
+ *   (found live on the Harvesting APR chart, 2026-07-28).
+ * - `axisPadMeasured` asks a canvas for the real face's width; charts
+ *   upgrade to it in an EFFECT (and re-measure when the webfont lands,
+ *   since fallback-font metrics run narrower). 0 where no canvas exists.
  *
- * Canvas measures the real face where the browser offers one. The per-glyph
- * estimate is kept as a FLOOR rather than a fallback, because measureText
- * reports fallback-font metrics until the webfont finishes loading and those
- * run narrower than the brand face. Over-measuring costs a few pixels of
- * gutter; under-measuring costs a digit.
+ * The estimate stays a deliberate FLOOR under the measurement: a fixed
+ * gutter silently clips the leading glyph the moment a formatter emits
+ * something long, which happened twice ("$280.00" lost its "$";
+ * "15000.0%" rendered as "5000.0%" — a wrong number on screen).
+ * Over-measuring costs a few pixels of gutter; under-measuring costs a
+ * digit.
  */
-export function axisPadLeft(
+export function axisPadEstimate(
   labels: string[],
   fontPx = AXIS_FONT_PX,
   min = 46,
@@ -66,9 +72,18 @@ export function axisPadLeft(
   for (const label of labels) {
     let estimate = 0;
     for (const ch of label) estimate += (EM[ch] ?? DEFAULT_EM) * fontPx;
-    widest = Math.max(widest, estimate, measureText(label, fontPx));
+    widest = Math.max(widest, estimate);
   }
   return Math.max(min, Math.ceil(widest) + 12);
+}
+
+/** Canvas-measured gutter for the same labels; 0 when unmeasurable. */
+export function axisPadMeasured(labels: string[], fontPx = AXIS_FONT_PX): number {
+  let widest = 0;
+  for (const label of labels) {
+    widest = Math.max(widest, measureText(label, fontPx));
+  }
+  return widest > 0 ? Math.ceil(widest) + 12 : 0;
 }
 
 export function extent(values: number[]): [number, number] {

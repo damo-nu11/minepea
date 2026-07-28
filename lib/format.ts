@@ -62,6 +62,16 @@ export function fmtInt(n: number): string {
 }
 
 /**
+ * WHOLE-dollar USD for headline treasury figures: 1284306.7 → "$1,284,307".
+ * A total written out to the dollar reads like a bank statement; a compact
+ * "$1.28M" reads like a pitch deck (Stockpot design rule).
+ */
+export function fmtUsdWhole(n: number): string {
+  if (!Number.isFinite(n)) return "$0";
+  return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+/**
  * Compact to a fixed number of SIGNIFICANT figures: 243.8K, 1.183M, 12.35M.
  *
  * Fixed decimals misread across magnitudes — at 2dp, 1,183,000 flattens to a

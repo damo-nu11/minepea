@@ -47,7 +47,9 @@ export function StatCard({
 }: {
   title: string;
   value: string;
-  caption: string;
+  /** Plain string, or a ticking leaf (Convention 4) like the Stockpot's
+   * market-open countdown. */
+  caption: React.ReactNode;
   accent?: boolean;
 }) {
   return (

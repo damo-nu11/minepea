@@ -14,11 +14,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AXIS_FONT_PX,
-  axisPadLeft,
   extent,
   fmtDate,
   niceTicks,
 } from "@/components/charts/scale";
+import { useAxisPad } from "@/components/charts/useAxisPad";
 import type { TimePoint } from "@/lib/mock/analytics";
 
 export interface LineSeries {
@@ -91,27 +91,34 @@ export function LineChart({
   // otherwise render a zero-height chart.
   const h = fillHeight && measuredH ? Math.max(height, measuredH) : height;
 
-  const { xOf, yOf, ticks, times, padLeft } = useMemo(() => {
+  const ticks = useMemo(() => {
+    const allV = series.flatMap((s) => s.points.map((p) => p.v));
+    const [rawMin, vMax] = extent(allV);
+    const vMin = zeroFloor ? Math.min(0, rawMin) : rawMin;
+    return niceTicks(vMin, vMax);
+  }, [series, zeroFloor]);
+
+  // SSR-deterministic gutter (estimate first render, canvas upgrade in an
+  // effect — the hydration rule). Shared with BarChart so both axes clip
+  // identically, which is to say never.
+  const padLeft = useAxisPad(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
+
+  const { xOf, yOf, times } = useMemo(() => {
     const times = series[0]?.points.map((p) => p.t) ?? [];
     const [tMin, tMax] = extent(times);
     const allV = series.flatMap((s) => s.points.map((p) => p.v));
     let [vMin, vMax] = extent(allV);
     if (zeroFloor) vMin = Math.min(0, vMin);
-    const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    // The y gutter sizes to its widest label (axisPadLeft measures the real
-    // face, with a per-glyph estimate as a floor). Shared with BarChart so
-    // both axes clip identically, which is to say never.
-    const padLeft = axisPadLeft(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
     const iW = Math.max(120, width - padLeft - PAD.right);
     const iH = h - PAD.top - PAD.bottom;
     const xOf = (t: number) =>
       padLeft + ((t - tMin) / Math.max(1, tMax - tMin)) * iW;
     const yOf = (v: number) =>
       PAD.top + iH - ((v - vMin) / Math.max(1e-9, vMax - vMin)) * iH;
-    return { xOf, yOf, ticks, times, padLeft };
-  }, [series, width, h, zeroFloor, yFmt]);
+    return { xOf, yOf, times };
+  }, [series, width, h, zeroFloor, ticks, padLeft]);
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (times.length === 0) return;

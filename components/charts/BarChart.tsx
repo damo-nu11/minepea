@@ -10,10 +10,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AXIS_FONT_PX,
-  axisPadLeft,
   extent,
   niceTicks,
 } from "@/components/charts/scale";
+import { useAxisPad } from "@/components/charts/useAxisPad";
 
 export interface BarSeries {
   name: string;
@@ -63,7 +63,7 @@ export function BarChart({
     return () => ro.disconnect();
   }, []);
 
-  const { yOf, ticks, slotW, x0 } = useMemo(() => {
+  const ticks = useMemo(() => {
     // Stacked totals per index decide the domain (positives up, negatives down).
     const tops = labels.map((_, i) =>
       series.reduce((a, s) => a + Math.max(0, s.values[i] ?? 0), 0),
@@ -72,20 +72,33 @@ export function BarChart({
       series.reduce((a, s) => a + Math.min(0, s.values[i] ?? 0), 0),
     );
     const overlayV = overlays.flatMap((o) => o.values);
+    const [vMin, vMax] = extent([...tops, ...bottoms, ...overlayV, 0]);
+    return niceTicks(vMin, vMax);
+  }, [labels, series, overlays]);
+
+  // SSR-deterministic gutter (estimate first render, canvas upgrade in an
+  // effect — the hydration rule), same hook LineChart uses. This was a
+  // fixed 46px once, which is narrower than a label like "15000.0%" needs,
+  // so the leading digit was painted outside the viewBox and lost.
+  const x0 = useAxisPad(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
+
+  const { yOf, slotW } = useMemo(() => {
+    const tops = labels.map((_, i) =>
+      series.reduce((a, s) => a + Math.max(0, s.values[i] ?? 0), 0),
+    );
+    const bottoms = labels.map((_, i) =>
+      series.reduce((a, s) => a + Math.min(0, s.values[i] ?? 0), 0),
+    );
+    const overlayV = overlays.flatMap((o) => o.values);
     let [vMin, vMax] = extent([...tops, ...bottoms, ...overlayV, 0]);
-    const ticks = niceTicks(vMin, vMax);
     vMin = Math.min(vMin, ticks[0]);
     vMax = Math.max(vMax, ticks[ticks.length - 1]);
-    // Gutter sized to the widest tick label, same helper LineChart uses. This
-    // was a fixed 46px, which is narrower than a label like "15000.0%" needs,
-    // so the leading digit was painted outside the viewBox and lost.
-    const x0 = axisPadLeft(ticks.map(yFmt), AXIS_FONT_PX, PAD.left);
     const iW = Math.max(120, width - x0 - PAD.right);
     const iH = height - PAD.top - PAD.bottom;
     const yOf = (v: number) =>
       PAD.top + iH - ((v - vMin) / Math.max(1e-9, vMax - vMin)) * iH;
-    return { yOf, ticks, slotW: iW / Math.max(1, labels.length), x0 };
-  }, [labels, series, overlays, width, height, yFmt]);
+    return { yOf, slotW: iW / Math.max(1, labels.length) };
+  }, [labels, series, overlays, width, height, ticks, x0]);
 
   const every =
     xTickEvery ?? Math.max(1, Math.ceil(labels.length / (width < 480 ? 4 : 8)));

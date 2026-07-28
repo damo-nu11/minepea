@@ -49,6 +49,7 @@ import {
   WinnerCell,
 } from "@/components/explore/shared";
 import { PriceChart } from "@/components/explore/PriceChart";
+import { StockpotTab } from "@/components/explore/StockpotTab";
 import { supplyView, useMarketData } from "@/lib/hooks/usePriceChart";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { RelTime } from "@/components/RelTime";
@@ -66,7 +67,14 @@ import {
 } from "@/lib/mock/analytics";
 import type { Address, RoundSummaryVM } from "@/lib/types";
 
-type Tab = "buybacks" | "token" | "staking" | "mining" | "miners";
+type Tab = "buybacks" | "token" | "staking" | "mining" | "miners" | "stockpot";
+
+/** Stockpot launch gate (reference/stockpot-plan.md): fabricated treasury
+ * data never ships, so the tab exists only with the real treasury address
+ * configured, or forced on locally for development against the mock. */
+const STOCKPOT_ON =
+  process.env.NEXT_PUBLIC_STOCKPOT === "1" ||
+  !!process.env.NEXT_PUBLIC_STOCKPOT_TREASURY;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "mining", label: "Mining" },
@@ -74,6 +82,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "token", label: "Token" },
   { id: "staking", label: "Staking" },
   { id: "miners", label: "Miners" },
+  ...(STOCKPOT_ON ? [{ id: "stockpot" as Tab, label: "Stockpot" }] : []),
 ];
 
 /** Weekly sum aggregation for daily series (audit: 180 daily bars = texture). */
@@ -1220,8 +1229,11 @@ export function ExplorePage() {
             (IS_API_MODE ? <LiveStakingTab /> : <StakingTab />)}
           {tab === "miners" &&
             (IS_API_MODE ? <LiveMinersTab /> : <MinersTab />)}
+          {tab === "stockpot" && <StockpotTab />}
         </div>
-        <ContractsSection />
+        {/* Stockpot carries its own provenance strip, so the generic
+            contracts block stays off that tab (user 2026-07-28). */}
+        {tab !== "stockpot" && <ContractsSection />}
       </div>
     </WideContainer>
   );
