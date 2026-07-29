@@ -397,3 +397,21 @@ export function AgentIcon({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+/** Arrow-into-tray download glyph (brand-kit pills: a pill that instantly
+ * saves a file must say so before the click). */
+export function DownloadIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      <path d="M11 3h2v8.59l3.3-3.3 1.4 1.42L12 15.4 6.3 9.71l1.4-1.42 3.3 3.3V3Z" />
+      <path d="M5 18h14v2H5Z" />
+    </svg>
+  );
+}

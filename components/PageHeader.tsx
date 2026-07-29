@@ -9,6 +9,7 @@
 
 /** White-prefix length per title (the rest + "." goes accent). */
 const SPLITS: Record<string, number> = {
+  Brand: 4, // Bran|d. (a 3-split strands "Bra" as its own word)
   Explore: 3, // Exp|lore.
   Stake: 3, // Sta|ke.
   Introduction: 5, // Intro|duction.

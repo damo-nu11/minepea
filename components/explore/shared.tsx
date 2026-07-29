@@ -79,23 +79,31 @@ export function StatCard({
 export function ChartCard({
   title,
   subtitle,
+  actions,
+  headingAs = "h3",
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** Right-of-title slot (download pills on /brand). */
+  actions?: React.ReactNode;
+  /** /brand sits directly under its h1, so its cards head at h2. */
+  headingAs?: "h2" | "h3";
   children: React.ReactNode;
 }) {
+  const Heading = headingAs;
   return (
     <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div>
-          <h3 className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">
+          <Heading className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">
             {title}
-          </h3>
+          </Heading>
           {subtitle && (
             <p className="mt-0.5 text-[12.5px] text-fg-muted">{subtitle}</p>
           )}
         </div>
+        {actions && <span className="flex items-center gap-2">{actions}</span>}
       </div>
       <div className="mt-4">{children}</div>
     </div>

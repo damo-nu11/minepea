@@ -4,9 +4,12 @@
  * appears — a render crash in any page fails CI instead of shipping unseen.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { ANALYTICS } from "@/lib/mock/analytics";
+import { BrandPage, SWATCHES } from "@/components/brand/BrandPage";
 import { ExplorePage } from "@/components/explore/ExplorePage";
 import { LegalPage } from "@/components/LegalPage";
 import { MinePage } from "@/components/mine/MinePage";
@@ -174,6 +177,123 @@ describe("page smoke renders", () => {
         screen.getByRole("heading", { name: `${section.title}.` }),
       ).toBeInTheDocument();
       unmount();
+    }
+  });
+
+  it("BrandPage renders the kit shell: swatches, real downloads, Soon slots", () => {
+    render(<BrandPage />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Brand." }),
+    ).toBeInTheDocument();
+    for (const title of ["Colors", "Coin", "Wordmark", "Lockup", "FAQ"])
+      expect(
+        screen.getByRole("heading", { name: title }),
+      ).toBeInTheDocument();
+    // Seven copyable swatches (coral is a UI state, not brand identity).
+    expect(
+      screen.getAllByRole("button", { name: /^Copy .* #[0-9A-F]{6}$/ }),
+    ).toHaveLength(7);
+    expect(screen.queryByText("#FF5C5C")).not.toBeInTheDocument();
+    expect(screen.getByText("#CCFF00")).toBeInTheDocument();
+    // Real downloads exist ONLY for files on disk today (mock/live
+    // honesty): coin PNG, wordmark + lockup in BOTH ground variants
+    // (dark-bg originals plus the light-bg set generated 2026-07-29 from
+    // the same vector source and layout).
+    const downloads = screen
+      .getAllByRole("link")
+      .filter((a) => a.hasAttribute("download"))
+      .map((a) => a.getAttribute("href"));
+    expect(downloads.sort()).toEqual([
+      "/pea-lockup-light-bg.png",
+      "/pea-lockup.png",
+      "/pea-logo.png",
+      "/pea-wordmark-light-bg.png",
+      "/pea-wordmark-light-bg.svg",
+      "/pea-wordmark.png",
+      "/pea-wordmark.svg",
+    ]);
+    // Wordmark and lockup each present both grounds, labeled.
+    expect(screen.getAllByText("For dark backgrounds")).toHaveLength(2);
+    expect(screen.getAllByText("For light backgrounds")).toHaveLength(2);
+    // No vector coin exists (user 2026-07-29): the kit promises nothing
+    // pending — every pill on the page is a real download.
+    expect(screen.queryByText("Soon")).not.toBeInTheDocument();
+  });
+});
+
+describe("BrandPage behavior pins", () => {
+  it("swatch hexes match app/globals.css (the palette has re-themed before)", () => {
+    const css = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
+    const tokens = new Map<string, string>();
+    for (const m of css.matchAll(/--color-([a-z-]+):\s*(#[0-9a-fA-F]{6})/g))
+      tokens.set(m[1], m[2].toUpperCase());
+    for (const s of SWATCHES) {
+      const token = s.cls.replace(/^bg-/, "");
+      expect(tokens.get(token), `${s.name} (${token})`).toBe(s.hex);
+    }
+  });
+
+  it("every download pill points at a file that exists on disk", () => {
+    render(<BrandPage />);
+    const hrefs = screen
+      .getAllByRole("link")
+      .filter((a) => a.hasAttribute("download"))
+      .map((a) => a.getAttribute("href")!);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs)
+      expect(
+        existsSync(join(process.cwd(), "public", href.slice(1))),
+        href,
+      ).toBe(true);
+  });
+
+  it("claims Copied only after the write succeeds, then reverts", async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    try {
+      render(<BrandPage />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy Lime #CCFF00" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(writeText).toHaveBeenCalledWith("#CCFF00");
+      expect(screen.getByText("Copied")).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(screen.queryByText("Copied")).not.toBeInTheDocument();
+      expect(screen.getByText("#CCFF00")).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+      vi.useRealTimers();
+    }
+  });
+
+  it("a failed copy says Copy failed, never Copied", async () => {
+    // Clipboard API rejects AND jsdom has no execCommand: both methods
+    // miss, and the page must not claim success (the honesty branch).
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    try {
+      render(<BrandPage />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy Lime #CCFF00" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.queryByText("Copied")).not.toBeInTheDocument();
+      // Twice by design: the caption swap and the aria-live twin.
+      expect(screen.getAllByText("Copy failed")).toHaveLength(2);
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+      vi.useRealTimers();
     }
   });
 });
