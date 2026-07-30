@@ -95,6 +95,8 @@ export function useProfileEditor() {
   const [draft, setDraft] = useState("");
   /** Shared-profile write rejected: username already taken (409). */
   const [nameTaken, setNameTaken] = useState(false);
+  /** Set while the user is framing a freshly picked photo. */
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   /** Live mirror of the connected address, for guarding async applies
    * against an identity change mid-flight (synced in an effect — a ref
    * written during render is impure). */
@@ -113,6 +115,7 @@ export function useProfileEditor() {
     setEditing(false);
     setDraft("");
     setNameTaken(false);
+    setPendingFile(null);
   }
 
   // localStorage only after mount (Convention 7 — hydration safety),
@@ -225,20 +228,24 @@ export function useProfileEditor() {
     syncRemote(clean || null, avatar);
   };
 
-  const onAvatarPick = async (file: File | undefined) => {
+  /** A pick no longer saves straight away: it opens the cropper, and the
+   * cropped result comes back through applyAvatar. */
+  const onAvatarPick = (file: File | undefined) => {
     if (!file || !addr) return;
-    try {
-      const dataUrl = await fileToAvatar(file);
-      // Image decode is slow enough to outlast a wallet switch; without
-      // this the new photo lands on the OLD wallet's key and shared row.
-      if (addrRef.current !== addr) return;
-      setAvatar(dataUrl);
-      safeSet(avatarKey(addr), dataUrl);
-      announceProfileChange();
-      syncRemote(username || null, dataUrl);
-    } catch {
-      // Unreadable file — keep the current avatar.
-    }
+    setPendingFile(file);
+  };
+
+  const cancelAvatarCrop = useCallback(() => setPendingFile(null), []);
+
+  const applyAvatar = (dataUrl: string) => {
+    setPendingFile(null);
+    // The crop can outlast a wallet switch; without this the new photo
+    // lands on the OLD wallet's key and shared row.
+    if (!addr || addrRef.current !== addr) return;
+    setAvatar(dataUrl);
+    safeSet(avatarKey(addr), dataUrl);
+    announceProfileChange();
+    syncRemote(username || null, dataUrl);
   };
 
   const removeAvatar = () => {
@@ -292,6 +299,9 @@ export function useProfileEditor() {
     cancelEdit,
     saveUsername,
     onAvatarPick,
+    pendingFile,
+    applyAvatar,
+    cancelAvatarCrop,
     removeAvatar,
     discord,
     disconnectDiscord,

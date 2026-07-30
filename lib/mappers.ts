@@ -147,6 +147,10 @@ export function toUserRoundVM(wire: UserRoundWire): UserRoundVM {
   const wonEth = fromWei(wire.wonEthWei);
   const netEth = wonEth - deployedEth;
   const wonPea = fromWei(wire.wonPeaWei) + fromWei(wire.peapotPeaWei);
+  // Return on the round's own stake: a total loss reads -100%, and a
+  // round that doubled reads +100%. Null when nothing was deployed, so
+  // it dashes instead of dividing by zero.
+  const netPct = deployedEth > 0 ? (netEth / deployedEth) * 100 : null;
   return {
     ...wire,
     deployedEth,
@@ -155,6 +159,11 @@ export function toUserRoundVM(wire: UserRoundWire): UserRoundVM {
     wonEthFormatted: fmtTokenSmart(wonEth, 4),
     netEth,
     netEthFormatted: signedEth(netEth),
+    netPct,
+    netPctFormatted:
+      netPct === null
+        ? DASH
+        : `${netPct > 0 ? "+" : ""}${fmtPct(netPct)}`,
     wonPea,
     // fmtTokenSmart, not fmtToken: a small miner's share of a split round
     // is routinely under 0.005 PEA, and 2dp rounding printed those real

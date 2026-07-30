@@ -39,6 +39,7 @@ import {
   PersonIcon,
 } from "@/components/icons";
 import { BoardMini } from "@/components/mine/BoardMini";
+import { AvatarCropper } from "@/components/profile/AvatarCropper";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { PeaRow, Row } from "@/components/profile/rows";
 import { TickingYield } from "@/components/stake/TickingYield";
@@ -268,19 +269,34 @@ function ProfileHistoryRow({
         <td className={`${TD} pl-6 text-[14px]`}>
           <ResultCell r={r} />
         </td>
+        {/* A win whose checkpoint has not landed reports zeroed rewards,
+            so its net would read as a full loss in coral under a lime
+            "Won, pending" label. Dash both money cells until the chain
+            says what was actually paid. */}
         <td
           className={`${TD} tnum text-right ${
-            r.netEth > 0
-              ? "text-accent"
-              : r.netEth < 0
-                ? "text-danger"
-                : "text-fg-muted"
+            r.rewardPending
+              ? "text-fg-muted"
+              : r.netEth > 0
+                ? "text-accent"
+                : r.netEth < 0
+                  ? "text-danger"
+                  : "text-fg-muted"
           }`}
         >
-          {r.netEthFormatted}
+          {r.rewardPending ? (
+            "—"
+          ) : (
+            <span className="flex flex-col items-end leading-tight">
+              <span>{r.netEthFormatted}</span>
+              <span className="text-[12px] font-normal text-fg-muted">
+                {r.netPctFormatted}
+              </span>
+            </span>
+          )}
         </td>
         <td className={`${TD} tnum text-right`}>
-          {r.wonPea > 0 ? r.wonPeaFormatted : "0"}
+          {r.rewardPending ? "—" : r.wonPea > 0 ? r.wonPeaFormatted : "0"}
         </td>
         <td className={`${TD} text-right`}>
           <button
@@ -405,6 +421,14 @@ export function ProfilePage() {
         subtitle="Your identity, holdings, and mining record."
       />
 
+      {editor.pendingFile && (
+        <AvatarCropper
+          file={editor.pendingFile}
+          onCancel={editor.cancelAvatarCrop}
+          onApply={editor.applyAvatar}
+        />
+      )}
+
       {/* One prompt for every not-connected state: the ConnectButton
           disables itself while the wallet is initializing, so a slow (or
           misconfigured) provider shows a disabled Connect, never an
@@ -465,7 +489,7 @@ export function ProfilePage() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         e.target.value = "";
-                        void editor.onAvatarPick(file);
+                        editor.onAvatarPick(file);
                       }}
                     />
                   </span>

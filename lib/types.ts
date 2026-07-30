@@ -275,6 +275,10 @@ export interface UserRoundVM extends UserRoundWire {
   /** wonEth − deployed (signed). */
   netEth: number;
   netEthFormatted: string;
+  /** Net as a return on the round's own stake; null when nothing was
+   * deployed (never a divide-by-zero zero). */
+  netPct: number | null;
+  netPctFormatted: string;
   /** Emission + peapot combined for display. */
   wonPea: number;
   wonPeaFormatted: string;

@@ -40,6 +40,7 @@ import {
   PencilIcon,
   PersonIcon,
 } from "@/components/icons";
+import { AvatarCropper } from "@/components/profile/AvatarCropper";
 import { PeaRow, Row } from "@/components/profile/rows";
 import { fmtToken, shortAddr } from "@/lib/format";
 import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
@@ -171,7 +172,15 @@ export function ProfilePanel({
   const total = b ? b.pea + staked + refined + unrefined : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50">
+    <>
+      {editor.pendingFile && (
+        <AvatarCropper
+          file={editor.pendingFile}
+          onCancel={editor.cancelAvatarCrop}
+          onApply={editor.applyAvatar}
+        />
+      )}
+      <div className="fixed inset-0 z-50">
       {/* Backdrop: non-focusable (a <button> here added an invisible tab
           stop — audit); Escape + the ✕ button are the keyboard paths.
           Frosted blur over the page (user direction 2026-07-13). */}
@@ -230,7 +239,7 @@ export function ProfilePanel({
                 const file = e.target.files?.[0];
                 // Reset so picking the SAME file again re-fires (audit).
                 e.target.value = "";
-                void editor.onAvatarPick(file);
+                editor.onAvatarPick(file);
               }}
             />
           </span>
@@ -409,8 +418,9 @@ export function ProfilePanel({
             Disconnect
           </button>
         </div>
-      </aside>
-    </div>,
+        </aside>
+      </div>
+    </>,
     document.body,
   );
 }

@@ -186,6 +186,23 @@ describe("user round/totals VMs", () => {
     expect(vm.wonPea).toBeCloseTo(1 / 3, 9);
   });
 
+  it("net percentage is the return on the round's own stake", () => {
+    // Deployed 0.1, won 0.4 → +0.3 net on 0.1 staked = +300%.
+    const win = toUserRoundVM(round(50, "won", 0.1, 0.4));
+    expect(win.netPct).toBeCloseTo(300, 6);
+    expect(win.netPctFormatted).toBe("+300.00%");
+    // A loss returns nothing, so the stake is gone: exactly -100%.
+    const loss = toUserRoundVM(round(49, "lost", 0.2, 0));
+    expect(loss.netPct).toBeCloseTo(-100, 6);
+    expect(loss.netPctFormatted).toBe("-100.00%");
+  });
+
+  it("a zero-stake round dashes rather than dividing by zero", () => {
+    const none = toUserRoundVM(round(48, "lost", 0, 0));
+    expect(none.netPct).toBeNull();
+    expect(none.netPctFormatted).toBe("—");
+  });
+
   it("totals VM: win rate and signed lifetime net", () => {
     const t = toUserTotalsVM(
       deriveUserTotals([
