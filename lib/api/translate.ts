@@ -389,18 +389,25 @@ export function toUserRoundWire(
 ): UserRoundWire | null {
   const r = e.roundResult;
   if (!r || !r.settled || r.outcome === null) return null;
-  const ethWon = r.ethWon ?? "0";
-  const peaMining = r.peaWonMining ?? "0";
-  const peaPeapot = r.peaWonPeapot ?? "0";
+  // Every amount goes through wei(): the backend's rpc-poller fallback has
+  // been observed live emitting "0x…" strings, and a hex "0x0" compared
+  // against "0" below would read as a real reward and hide a pending
+  // checkpoint. Missing fields normalise to "0" rather than NaN.
+  const ethWon = wei(r.ethWon);
+  const peaMining = wei(r.peaWonMining);
+  const peaPeapot = wei(r.peaWonPeapot);
+  // A bad timestamp must not reach stamp(): new Date(NaN).toISOString()
+  // throws RangeError and the error boundary eats the whole page.
+  const settledAt = Date.parse(r.settledAt) || Date.parse(e.timestamp) || 0;
   return {
     roundId: e.roundId,
-    settledAt: Date.parse(r.settledAt),
+    settledAt,
     outcome: r.outcome,
     isSplit: r.isSplit === true,
     peapotHit: r.peapotHit === true,
     winningTile: r.winningBlock,
     tiles: tilesFromMask(e.blockMask),
-    deployedWei: e.totalAmount,
+    deployedWei: wei(e.totalAmount),
     wonEthWei: ethWon,
     wonPeaWei: peaMining,
     peapotPeaWei: peaPeapot,
@@ -418,12 +425,16 @@ export function toUserTotalsWire(
   t: BackendHistoryTotals,
 ): UserTotalsWire {
   return {
-    roundsPlayed: t.roundsPlayed,
-    roundsWon: t.roundsWon,
-    peapotHits: t.peapotHits,
-    totalDeployedWei: t.totalETHDeployed,
-    totalWonEthWei: t.totalETHWon,
-    totalWonPeaWei: t.totalPEAWon,
+    roundsPlayed: t.roundsPlayed ?? 0,
+    roundsWon: t.roundsWon ?? 0,
+    // null (not 0) when the backend has not computed it: the aggregates
+    // stay at defaults until the dev's backfill script runs once, and a
+    // confident "0 peapot hits" beside a table showing PEAPOT badges is
+    // the page contradicting itself.
+    peapotHits: t.peapotHits ?? null,
+    totalDeployedWei: wei(t.totalETHDeployed),
+    totalWonEthWei: wei(t.totalETHWon),
+    totalWonPeaWei: wei(t.totalPEAWon),
     bestRound: t.bestRound,
     bestWinStreak: t.bestWinStreak,
     currentWinStreak: t.currentWinStreak,

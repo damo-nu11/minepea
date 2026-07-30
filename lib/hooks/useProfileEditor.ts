@@ -17,7 +17,7 @@
  * because two surfaces mounting the hook must not double-post.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   announceProfileChange,
   avatarKey,
@@ -95,6 +95,25 @@ export function useProfileEditor() {
   const [draft, setDraft] = useState("");
   /** Shared-profile write rejected: username already taken (409). */
   const [nameTaken, setNameTaken] = useState(false);
+  /** Live mirror of the connected address, for guarding async applies
+   * against an identity change mid-flight (synced in an effect — a ref
+   * written during render is impure). */
+  const addrRef = useRef(addr);
+  useEffect(() => {
+    addrRef.current = addr;
+  }, [addr]);
+
+  // Reset the edit buffer the moment the wallet changes, DURING RENDER
+  // (the house pattern). Left open across a switch, saveUsername wrote
+  // wallet A's name into wallet B's key and published it to B's shared
+  // row — the bug class per-wallet namespacing exists to prevent.
+  const [bufferAddr, setBufferAddr] = useState(addr);
+  if (bufferAddr !== addr) {
+    setBufferAddr(addr);
+    setEditing(false);
+    setDraft("");
+    setNameTaken(false);
+  }
 
   // localStorage only after mount (Convention 7 — hydration safety),
   // guarded, keyed on the ADDRESS (the browser-global-key bug class is
@@ -181,15 +200,20 @@ export function useProfileEditor() {
     }).then((r) => setNameTaken(r === "taken"));
   };
 
-  const startEdit = () => {
+  // STABLE identities. These are consumed in the drawer's dialog-effect
+  // deps; as fresh arrows they re-ran that effect on every render, whose
+  // cleanup/setup pair moved focus to the close button — so typing in the
+  // username field lost focus after one character (regression found by
+  // audit 2026-07-30, introduced by this extraction).
+  const startEdit = useCallback(() => {
     setDraft(username);
     setEditing(true);
-  };
+  }, [username]);
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setEditing(false);
     setDraft("");
-  };
+  }, []);
 
   const saveUsername = () => {
     if (!addr) return;
@@ -205,6 +229,9 @@ export function useProfileEditor() {
     if (!file || !addr) return;
     try {
       const dataUrl = await fileToAvatar(file);
+      // Image decode is slow enough to outlast a wallet switch; without
+      // this the new photo lands on the OLD wallet's key and shared row.
+      if (addrRef.current !== addr) return;
       setAvatar(dataUrl);
       safeSet(avatarKey(addr), dataUrl);
       announceProfileChange();

@@ -147,6 +147,45 @@ describe("ProfilePage P0", () => {
     }
   });
 
+  it("keeps focus in the username field while typing (drawer)", async () => {
+    // The dialog effect must NOT re-run on every render. When its deps
+    // held a fresh-arrow callback, each keystroke re-ran the effect and
+    // its cleanup/setup pair moved focus to the close button, so only the
+    // first character ever landed. Two characters is what catches it.
+    wrap(<ConnectButton />, walletCtx(A));
+    fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
+    expect(
+      await screen.findByRole("dialog", { name: "Profile" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit username" }));
+    const input = screen.getByRole("textbox", { name: "Username" });
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: "a" } });
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: "ab" } });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("clears the edit buffer on a wallet switch (never writes A's name to B)", async () => {
+    const { rerender } = wrap(<ProfilePage />, walletCtx(A));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit username" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Username" }), {
+      target: { value: "alpha-name" },
+    });
+    // Wallet switches underneath the open editor.
+    rerender(
+      <EngineProvider store={fixtureStore()}>
+        <WalletContext.Provider value={walletCtx(B)}>
+          <ProfilePage />
+        </WalletContext.Provider>
+      </EngineProvider>,
+    );
+    // The editor must have closed rather than carrying A's draft into B.
+    expect(
+      screen.queryByRole("textbox", { name: "Username" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides the drawer link until the page is launched (env gate)", async () => {
     wrap(<ConnectButton />, walletCtx(A));
     fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
@@ -217,12 +256,20 @@ describe("ProfilePage P1 (PnL + history)", () => {
     userRound(49, "lost", 0.2, 0),
   ];
 
-  it("renders PnL cards from the totals fold, USD-first with exact ETH beneath", () => {
+  it("keeps the PnL cards out of v1 (they ship with the share cards)", () => {
     wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
-    expect(screen.getByText("+$380.00")).toBeInTheDocument();
-    expect(screen.getByText("50.00%")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2 rounds")).toBeInTheDocument();
-    expect(screen.getByText(/Through round #50/)).toBeInTheDocument();
+    // The totals fold still runs (trophies read it) but no headline
+    // scoreboard renders: net PnL, deployed and win rate stay unshipped.
+    expect(screen.queryByText("NET PNL")).not.toBeInTheDocument();
+    expect(screen.queryByText("WIN RATE")).not.toBeInTheDocument();
+    expect(screen.queryByText("+$380.00")).not.toBeInTheDocument();
+  });
+
+  it("renders trophies from the same totals fold", () => {
+    wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
+    expect(screen.getByText("Best round")).toBeInTheDocument();
+    // Round 50 netted +0.3 ETH (0.4 won on 0.1 deployed).
+    expect(screen.getByText("+0.3 ETH")).toBeInTheDocument();
   });
 
   it("renders the history rows and filters to winners only", () => {

@@ -7,7 +7,7 @@ import {
   fmtInt,
   fmtPct,
   fmtRoundId,
-  fmtToken,
+
   fmtTokenSmart,
   fmtUsd,
   fromWei,
@@ -133,6 +133,9 @@ export function toProtocolStatsVM(wire: ProtocolStatsWire): ProtocolStatsVM {
   };
 }
 
+/** Unknown renders as this, never a confident zero (the house law). */
+const DASH = "—";
+
 /** Signed ETH figure: "+0.0234" / "-0.0100" / "0" for exact zero. */
 function signedEth(v: number): string {
   if (v === 0) return "0";
@@ -153,21 +156,29 @@ export function toUserRoundVM(wire: UserRoundWire): UserRoundVM {
     netEth,
     netEthFormatted: signedEth(netEth),
     wonPea,
-    wonPeaFormatted: fmtToken(wonPea, 2),
+    // fmtTokenSmart, not fmtToken: a small miner's share of a split round
+    // is routinely under 0.005 PEA, and 2dp rounding printed those real
+    // wins as a flat "0" next to a "Won split" label.
+    wonPeaFormatted: fmtTokenSmart(wonPea, 2),
+    // Tested for "won" EXPLICITLY. A chain ending in the win branch would
+    // congratulate the user on any enum value the backend adds later
+    // (refunded, void, …) — the exact inverse of the checkpoint bug below.
     resultLabel:
-      wire.outcome === "no_winner"
-        ? "No winner"
+      wire.outcome === "won"
+        ? // A win whose on-chain checkpoint has not landed reports zeroed
+          // rewards. It is still a win and must say so — rendering it as a
+          // loss is the bug this project already shipped once on the
+          // rewards side (the backend's own docs repeat the warning).
+          wire.rewardPending
+          ? "Won, pending"
+          : wire.isSplit
+            ? "Won split"
+            : "Won"
         : wire.outcome === "lost"
           ? "Lost"
-          : // A win whose on-chain checkpoint has not landed reports zeroed
-            // rewards. It is still a win and must say so — rendering it as
-            // a loss is the bug this project already shipped once on the
-            // rewards side (backend's own warning repeats it).
-            wire.rewardPending
-            ? "Won, pending"
-            : wire.isSplit
-              ? "Won split"
-              : "Won",
+          : wire.outcome === "no_winner"
+            ? "No winner"
+            : "—",
   };
 }
 
@@ -234,6 +245,8 @@ export function toUserTotalsVM(wire: UserTotalsWire): UserTotalsVM {
     roundsPlayed: wire.roundsPlayed,
     roundsWon: wire.roundsWon,
     peapotHits: wire.peapotHits,
+    peapotHitsFormatted:
+      wire.peapotHits === null ? DASH : fmtInt(wire.peapotHits),
     winRatePct,
     winRateFormatted: fmtPct(winRatePct),
     totalDeployedEth,
@@ -241,7 +254,7 @@ export function toUserTotalsVM(wire: UserTotalsWire): UserTotalsVM {
     netEth,
     netEthFormatted: signedEth(netEth),
     totalWonPea,
-    totalWonPeaFormatted: fmtToken(totalWonPea, 2),
+    totalWonPeaFormatted: fmtTokenSmart(totalWonPea, 2),
     bestRound: wire.bestRound
       ? {
           roundId: wire.bestRound.roundId,

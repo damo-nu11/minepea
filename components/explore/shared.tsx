@@ -95,7 +95,9 @@ export function ChartCard({
   headingAs = "h3",
   children,
 }: {
-  title: string;
+  /** Omit for an untitled panel (the /profile identity block) — the card
+   * shell is the shared thing; not every panel needs a heading. */
+  title?: string;
   subtitle?: string;
   /** Right-of-title slot (download pills on /brand). */
   actions?: React.ReactNode;
@@ -104,20 +106,25 @@ export function ChartCard({
   children: React.ReactNode;
 }) {
   const Heading = headingAs;
+  const hasHeader = title !== undefined || actions !== undefined;
   return (
     <div className="rounded-[16px] border border-line-slate bg-gradient-to-br from-surface-active/40 via-panel to-bg p-6">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-        <div>
-          <Heading className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">
-            {title}
-          </Heading>
-          {subtitle && (
-            <p className="mt-0.5 text-[12.5px] text-fg-muted">{subtitle}</p>
-          )}
+      {hasHeader && (
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div>
+            {title !== undefined && (
+              <Heading className="font-wordmark text-[18px] font-bold tracking-[-0.01em] text-fg">
+                {title}
+              </Heading>
+            )}
+            {subtitle && (
+              <p className="mt-0.5 text-[12.5px] text-fg-muted">{subtitle}</p>
+            )}
+          </div>
+          {actions && <span className="flex items-center gap-2">{actions}</span>}
         </div>
-        {actions && <span className="flex items-center gap-2">{actions}</span>}
-      </div>
-      <div className="mt-4">{children}</div>
+      )}
+      <div className={hasHeader ? "mt-4" : undefined}>{children}</div>
     </div>
   );
 }

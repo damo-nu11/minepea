@@ -10,15 +10,26 @@
  * nothing order-dependent (streaks, best round, win rate) is ever computed
  * client-side over a partial page.
  *
- * Rules this obeys, all learned the hard way elsewhere in this app:
- * - NOT in the backend's strict per-IP pool (default tier, 60/min), so a
- *   profile visit can never starve the rewards/staking/automine reads. It
- *   still fetches once per wallet rather than polling.
- * - Keyed and cached per ADDRESS, aborted on identity change: a wallet
- *   switch must never paint the previous wallet's history.
- * - A failed refresh keeps whatever is already shown.
- * - `totals: null` means "never mined", which is a designed empty state,
- *   not an error and not a row of zeros.
+ * Audit-hardened 2026-07-30, all four found by review before launch:
+ * - NO per-consumer AbortController. The in-flight promise is SHARED across
+ *   mounts, so one consumer aborting it rejects everyone else's — and the
+ *   old guard tested the aborting consumer's own signal, so the survivor
+ *   reported the error and painted an error state. Reproduced exactly under
+ *   StrictMode's mount/cleanup/mount. Cancellation is now the local
+ *   `cancelled` flag only (the usePeapotRounds pattern this mirrors).
+ * - A REQUEST TIMEOUT, feature-detected. Without one a hung origin left the
+ *   promise pending forever AND pinned it in `inflight` (the delete lives in
+ *   .finally), so every later mount in that tab reused the dead promise.
+ * - FAILURES ARE CACHED briefly. On rejection nothing was written, so every
+ *   remount refetched immediately with no floor — a rate-limited endpoint
+ *   got hammered by a user clicking back and forth.
+ * - REFRESHES WHEN THE ROUND ADVANCES. Deps were [addr] alone, so a wallet
+ *   that won while the page was open saw nothing until it navigated away and
+ *   back. The TTL was only ever a remount-thrash guard, never freshness.
+ *
+ * Still true by design: sits in the backend's DEFAULT rate tier (60/min),
+ * never polls, and `totals: null` means "never mined" — a designed empty
+ * state, not an error.
  */
 
 import { useEffect, useState } from "react";
@@ -27,21 +38,32 @@ import {
   toUserRoundWire,
   toUserTotalsWire,
 } from "@/lib/api/translate";
-import { useUserRounds } from "@/lib/hooks/useGame";
+import { useRound, useUserRounds } from "@/lib/hooks/useGame";
 import { toUserRoundVM, toUserTotalsVM } from "@/lib/mappers";
 import { report } from "@/lib/report";
 import type { Address, HookResult, UserHistoryVM } from "@/lib/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
-/** The backend caps limit at 500 and caches responses for 20s. One page of
- * 500 covers every wallet we can realistically have today; beyond that the
- * UI says "last 500 rounds" rather than claiming lifetime. */
+/** The backend caps limit at 500 and caches responses for 20s. */
 const PAGE_LIMIT = 500;
 const CACHE_TTL_MS = 30_000;
+/** Floor under a failing endpoint: a remount storm must not become a
+ * request storm against something already rate-limiting us. */
+const FAILURE_TTL_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 type Entry = { vm: UserHistoryVM; at: number };
 const cache = new Map<string, Entry>();
+const failures = new Map<string, number>();
 const inflight = new Map<string, Promise<UserHistoryVM>>();
+
+/** AbortSignal.timeout is absent on older engines; a bare call there throws
+ * and kills the fetch outright (the lesson from useStockpot). */
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+    ? AbortSignal.timeout(ms)
+    : undefined;
+}
 
 /** Exported for tests: the live-mode fetch + translate, without React. */
 export async function fetchUserHistory(
@@ -50,16 +72,20 @@ export async function fetchUserHistory(
   signal?: AbortSignal,
 ): Promise<UserHistoryVM> {
   const url = `${API_URL}/api/user/${address.toLowerCase()}/history?type=deploy&settled=true&limit=${PAGE_LIMIT}`;
-  const res = await fetchImpl(url, { signal });
+  const res = await fetchImpl(url, {
+    signal: signal ?? timeoutSignal(REQUEST_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`history ${res.status}`);
   const body = (await res.json()) as UserHistoryResponse;
   // Unsettled rows translate to null and drop out: the profile shows
-  // settled rounds only (the live round is deliberately absent from this
-  // page entirely).
+  // settled rounds only (the live round is deliberately absent).
   const rounds = (body.history ?? [])
     .map(toUserRoundWire)
     .filter((r) => r !== null)
-    .map(toUserRoundVM);
+    .map(toUserRoundVM)
+    // The caption promises newest first; enforce it rather than trusting
+    // the backend's page order to stay what it is today.
+    .sort((a, b) => b.roundId - a.roundId);
   return {
     rounds,
     totals: body.totals ? toUserTotalsVM(toUserTotalsWire(body.totals)) : null,
@@ -70,7 +96,12 @@ export function useUserHistory(
   address: Address | null,
 ): HookResult<UserHistoryVM> {
   const mock = useUserRounds();
+  const round = useRound();
   const addr = address?.toLowerCase() ?? null;
+  // A settled round is the signal that this wallet's history may have
+  // changed. Cheap: the TTL below caps it at ~2 requests/minute.
+  const roundId = round.data?.roundId ?? 0;
+
   // State carries the address it belongs to, so a wallet switch resets it
   // DURING RENDER (the house pattern) rather than painting one frame of
   // the previous wallet's history. Warm cache hydrates in the same step.
@@ -87,40 +118,44 @@ export function useUserHistory(
         : { data: undefined, status: "loading" },
     });
   }
+
   useEffect(() => {
     if (!API_URL || !addr) return;
     const cached = cache.get(addr);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) return;
+    const failedAt = failures.get(addr);
+    if (failedAt && Date.now() - failedAt < FAILURE_TTL_MS) return;
 
-    const ctrl = new AbortController();
     let cancelled = false;
     const key = addr;
+    // NOTE: no AbortController here on purpose — see the header. The
+    // promise is shared, so no single consumer may cancel it.
     const run =
       inflight.get(key) ??
-      fetchUserHistory(key, fetch, ctrl.signal).finally(() =>
-        inflight.delete(key),
-      );
+      fetchUserHistory(key).finally(() => inflight.delete(key));
     inflight.set(key, run);
     void run
       .then((vm) => {
         cache.set(key, { vm, at: Date.now() });
-        // Guard the apply against an identity change mid-flight.
+        failures.delete(key);
         if (!cancelled) setState({ addr, res: { data: vm, status: "live" } });
       })
       .catch((e) => {
-        if (cancelled || ctrl.signal.aborted) return;
-        report(e, "useUserHistory");
+        failures.set(key, Date.now());
+        if (cancelled) return;
+        report("user-history", e);
         // A failed refresh keeps whatever is already on screen.
         setState((cur) =>
-          cur.res.data ? cur : { addr, res: { data: undefined, status: "error" } },
+          cur.res.data
+            ? cur
+            : { addr, res: { data: undefined, status: "error" } },
         );
       });
 
     return () => {
       cancelled = true;
-      ctrl.abort();
     };
-  }, [addr]);
+  }, [addr, roundId]);
 
   if (!API_URL) return mock;
   if (!addr) return { data: undefined, status: "loading" };

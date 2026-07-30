@@ -254,7 +254,9 @@ export interface UserRoundWire {
 export interface UserTotalsWire {
   roundsPlayed: number;
   roundsWon: number;
-  peapotHits: number;
+  /** null when the backend has not computed it yet (its aggregates stay at
+   * defaults until a one-off backfill runs) — renders as a dash, never 0. */
+  peapotHits: number | null;
   totalDeployedWei: string;
   totalWonEthWei: string;
   totalWonPeaWei: string;
@@ -276,13 +278,20 @@ export interface UserRoundVM extends UserRoundWire {
   /** Emission + peapot combined for display. */
   wonPea: number;
   wonPeaFormatted: string;
-  resultLabel: "Won" | "Won split" | "Won, pending" | "Lost" | "No winner";
+  resultLabel:
+    | "Won"
+    | "Won split"
+    | "Won, pending"
+    | "Lost"
+    | "No winner"
+    | "—";
 }
 
 export interface UserTotalsVM {
   roundsPlayed: number;
   roundsWon: number;
-  peapotHits: number;
+  peapotHits: number | null;
+  peapotHitsFormatted: string;
   winRatePct: number;
   winRateFormatted: string;
   totalDeployedEth: number;

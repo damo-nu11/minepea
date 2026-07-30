@@ -54,13 +54,17 @@ import { usePrices } from "@/lib/hooks/useGame";
 import { useUserHistory } from "@/lib/hooks/useUserHistory";
 import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
-import type { UserRoundVM, UserTotalsVM } from "@/lib/types";
+import type { HookResult, UserRoundVM, UserTotalsVM } from "@/lib/types";
 import { useBalances, useWallet } from "@/lib/walletContext";
 
-/** Ledger-row timestamp: "2026-07-30 14:03" (the Stockpot tables' form). */
+/** Ledger-row timestamp: "2026-07-30 14:03 UTC" (the Stockpot form).
+ * Guarded: new Date(NaN).toISOString() THROWS, and one malformed
+ * timestamp from the backend would take the whole page to the error
+ * boundary the moment a user expanded that row. */
 function stamp(atMs: number): string {
+  if (!Number.isFinite(atMs) || atMs <= 0) return "—";
   const iso = new Date(atMs).toISOString();
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 }
 
 // The PnL cards (net, deployed, PEA won, win rate) are DELIBERATELY not
@@ -101,7 +105,7 @@ function Trophies({ totals }: { totals: UserTotalsVM }) {
         </Row>
         <Row label="Peapot hits">
           <span className="tnum text-[15px] font-semibold text-fg">
-            {fmtInt(totals.peapotHits)}
+            {totals.peapotHitsFormatted}
           </span>
         </Row>
       </div>
@@ -124,13 +128,26 @@ function ResultCell({ r }: { r: UserRoundVM }) {
   );
 }
 
-function HistoryCard({ rounds }: { rounds: UserRoundVM[] }) {
+function HistoryCard({
+  rounds,
+  status,
+}: {
+  rounds: UserRoundVM[];
+  status: HookResult<unknown>["status"];
+}) {
   const [winnersOnly, setWinnersOnly] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const filtered = winnersOnly
     ? rounds.filter((r) => r.outcome === "won")
     : rounds;
   const pg = usePage(filtered);
+  const setPage = pg.setPage;
+  const toggleWinners = () => {
+    setWinnersOnly((v) => !v);
+    // Without this the clamp lands you on the LAST page of the filtered
+    // list, and untoggling teleports back to an unrelated deep page.
+    setPage(0);
+  };
 
   return (
     <ChartCard
@@ -142,7 +159,7 @@ function HistoryCard({ rounds }: { rounds: UserRoundVM[] }) {
           <button
             type="button"
             aria-pressed={winnersOnly}
-            onClick={() => setWinnersOnly((v) => !v)}
+            onClick={toggleWinners}
             className={`focus-ring cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
               winnersOnly
                 ? "bg-accent/[0.12] text-accent"
@@ -154,7 +171,23 @@ function HistoryCard({ rounds }: { rounds: UserRoundVM[] }) {
         ) : undefined
       }
     >
-      {rounds.length === 0 ? (
+      {/* Status FIRST. Collapsing loading and error into the empty state
+          told a wallet with hundreds of rounds it had never mined, and
+          told it permanently when the fetch failed (audit 2026-07-30). */}
+      {status === "loading" && rounds.length === 0 ? (
+        <div className="flex flex-col gap-2 px-1 py-4" aria-hidden>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-12 animate-pulse rounded-lg bg-surface"
+            />
+          ))}
+        </div>
+      ) : status === "error" && rounds.length === 0 ? (
+        <p className="px-2 py-12 text-center text-[14px] text-fg-body">
+          Your history did not load. Retrying shortly.
+        </p>
+      ) : rounds.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
           <p className="text-[14px] leading-relaxed text-fg-body">
             Your settled rounds will appear here.
@@ -350,10 +383,17 @@ export function ProfilePage() {
   };
 
   const b = balances.data;
-  const staked = stakingPos.data?.staked ?? 0;
-  const refined = rewards.data?.refinedPea ?? 0;
-  const unrefined = rewards.data?.unrefinedPea ?? 0;
-  const total = b ? b.pea + staked + refined + unrefined : null;
+  // `undefined` from these hooks means UNKNOWN (loading or failed), not
+  // zero. Printing 0 told a wallet holding 12,000 staked PEA it held
+  // none, and the bold Total silently omitted it (audit 2026-07-30).
+  const staked = stakingPos.data?.staked;
+  const refined = rewards.data?.refinedPea;
+  const unrefined = rewards.data?.unrefinedPea;
+  const stakedFmt = staked === undefined ? "—" : fmtToken(staked, 2);
+  const total =
+    b && staked !== undefined && refined !== undefined && unrefined !== undefined
+      ? b.pea + staked + refined + unrefined
+      : null;
   const ethUsd = prices.data?.ethUsd ?? 0;
 
   return (
@@ -383,13 +423,18 @@ export function ProfilePage() {
         </div>
       )}
 
+      {/* ONE spacing scale for the whole page: SPACE (24px) between every
+          card in a column, the same SPACE between the columns, and the
+          cards' own p-6 inside. Every block is a ChartCard — the identity
+          panel used to be the one uncarded thing, which made the left
+          column read as loose content followed by cards and left the two
+          columns' tops misaligned (one had a border, one did not). */}
       {wallet.status === "connected" && (
-        <div className="mt-10 flex flex-col gap-8 pb-8">
-          <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start">
+        <div className="mt-10 pb-12">
+          <div className="grid gap-6 lg:grid-cols-[400px_1fr] lg:items-start">
             {/* LEFT: identity + trophies + portfolio + staking */}
             <div className="flex flex-col gap-6">
-              {/* Identity block (uncarded, panel-consistent) */}
-              <div className="flex flex-col">
+              <ChartCard>
                 <div className="flex justify-center">
                   <span className="relative">
                     <span className="flex size-28 items-center justify-center overflow-hidden rounded-full border border-line-slate bg-surface">
@@ -446,6 +491,8 @@ export function ProfilePage() {
                   </p>
                 )}
 
+                {/* Same 24px step the cards use between each other, so the
+                    rhythm does not change when you cross a card border. */}
                 <div className="mt-6 flex flex-col">
                   <Row label="Address">
                     <span className="flex items-center gap-2.5">
@@ -566,7 +613,7 @@ export function ProfilePage() {
                     )}
                   </Row>
                 </div>
-              </div>
+              </ChartCard>
 
               {history.data?.totals && (
                 <Trophies totals={history.data.totals} />
@@ -575,9 +622,17 @@ export function ProfilePage() {
               <ChartCard title="Portfolio" headingAs="h2">
                 <div className="flex flex-col">
                   <PeaRow label="Wallet" value={b?.peaFormatted ?? "—"} />
-                  <PeaRow label="Staked" value={fmtToken(staked, 2)} />
-                  <PeaRow label="Harvested" value={fmtToken(refined, 2)} />
-                  <PeaRow label="Unharvested" value={fmtToken(unrefined, 2)} />
+                  <PeaRow label="Staked" value={stakedFmt} />
+                  <PeaRow
+                    label="Harvested"
+                    value={refined === undefined ? "—" : fmtToken(refined, 2)}
+                  />
+                  <PeaRow
+                    label="Unharvested"
+                    value={
+                      unrefined === undefined ? "—" : fmtToken(unrefined, 2)
+                    }
+                  />
                   <PeaRow
                     label="Total"
                     value={total === null ? "—" : fmtToken(total, 2)}
@@ -601,12 +656,12 @@ export function ProfilePage() {
 
               <ChartCard title="Staking" headingAs="h2">
                 <div className="flex flex-col">
-                  <PeaRow label="Staked" value={fmtToken(staked, 2)} />
+                  <PeaRow label="Staked" value={stakedFmt} />
                   <Row label="Pending yield">
                     <span className="tnum text-[15px] font-semibold text-fg">
                       <TickingYield
                         pendingYield={stakingPos.data?.pendingYield}
-                        stakedPea={staked}
+                        stakedPea={staked ?? 0}
                         aprPct={null}
                         address={wallet.address}
                         pollChain
@@ -618,7 +673,10 @@ export function ProfilePage() {
             </div>
 
             {/* RIGHT: round history */}
-            <HistoryCard rounds={history.data?.rounds ?? []} />
+            <HistoryCard
+              rounds={history.data?.rounds ?? []}
+              status={history.status}
+            />
           </div>
         </div>
       )}
