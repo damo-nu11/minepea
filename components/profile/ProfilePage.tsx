@@ -1,18 +1,22 @@
 "use client";
 
 /**
- * /profile — the full profile page (plan: reference/profile-plan.md, P0
- * shell 2026-07-30). Reached ONLY through the drawer's "View full profile"
- * button or the URL — no nav entries anywhere (user decision 4).
+ * /profile — the full profile page (plan: reference/profile-plan.md,
+ * P0+P1 2026-07-30). Reached ONLY through the drawer's "View full
+ * profile" button (itself env-gated while this is being built) or the
+ * URL — no nav entries anywhere (user decision 4).
  *
- * Two-column ≥lg, the user's chosen shape: LEFT = identity + portfolio +
- * staking, RIGHT = round history (P1 fills the table; the card ships with
- * its designed empty state). Identity editing goes through the SAME
- * useProfileEditor hook as the drawer — one seam, zero drift.
+ * Layout: the site's WideContainer, then the PnL cards spanning the page
+ * (four cards inside a sidebar column read as an unscannable scoreboard),
+ * then two columns ≥lg in the user's chosen shape — LEFT identity +
+ * trophies + portfolio + staking, RIGHT round history. Identity editing
+ * goes through the SAME useProfileEditor hook as the drawer: one seam,
+ * zero drift.
  *
- * States are designed, not accidental: initializing → skeleton;
- * disconnected → connect prompt (never a blank page); connected renders
- * live. Everything unknown renders a dash, never a zero.
+ * States are designed, not accidental: every not-connected state (incl.
+ * initializing) renders the connect prompt, because a provider that never
+ * finishes initializing would otherwise strand a skeleton forever (found
+ * live). Everything unknown renders a dash, never a zero.
  */
 
 import Link from "next/link";
@@ -38,7 +42,7 @@ import {
   PersonIcon,
 } from "@/components/icons";
 import { BoardMini } from "@/components/mine/BoardMini";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { PeaRow, Row } from "@/components/profile/rows";
 import { TickingYield } from "@/components/stake/TickingYield";
 import { addressUrl } from "@/lib/contracts";
@@ -81,7 +85,7 @@ function PnlCards({
   const none = "No rounds yet";
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           title="NET PNL"
           value={
@@ -185,11 +189,7 @@ function Trophies({ totals }: { totals: UserTotalsVM }) {
 function ResultCell({ r }: { r: UserRoundVM }) {
   return (
     <span className="flex items-center gap-2">
-      <span
-        className={
-          r.outcome === "won" ? "text-accent" : "text-fg-muted"
-        }
-      >
+      <span className={r.outcome === "won" ? "text-accent" : "text-fg-muted"}>
         {r.resultLabel}
       </span>
       {r.peapotHit && (
@@ -432,7 +432,10 @@ export function ProfilePage() {
   const ethUsd = prices.data?.ethUsd ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-6 pb-6 pt-14">
+    // The site's wide page container (Explore/Docs): full width with the
+    // house side padding, so the page breathes instead of sitting in a
+    // narrow centred band with dead space either side.
+    <WideContainer>
       <PageHeader
         title="Profile"
         subtitle="Your identity, holdings, and mining record."
@@ -449,253 +452,255 @@ export function ProfilePage() {
             <PersonIcon size={28} className="text-fg-body" />
           </span>
           <p className="max-w-[360px] text-[14.5px] leading-relaxed text-fg-body">
-            Connect a wallet to see your profile, holdings, and round
-            history.
+            Connect a wallet to see your profile, holdings, and round history.
           </p>
           <ConnectButton />
         </div>
       )}
 
       {wallet.status === "connected" && (
-        <div className="mt-10 grid gap-6 lg:grid-cols-[400px_1fr] lg:items-start">
-          {/* LEFT: identity + portfolio + staking */}
-          <div className="flex flex-col gap-6">
-            {/* Identity block (uncarded, panel-consistent) */}
-            <div className="flex flex-col">
-              <div className="flex justify-center">
-                <span className="relative">
-                  <span className="flex size-28 items-center justify-center overflow-hidden rounded-full border border-line-slate bg-surface">
-                    {editor.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- local data URL, next/image adds nothing
-                      <img
-                        src={editor.avatar}
-                        alt="Profile picture"
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <PersonIcon size={44} className="text-fg-body" />
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Upload profile picture"
-                    onClick={() => fileRef.current?.click()}
-                    className="focus-ring absolute -bottom-0.5 -right-0.5 flex size-9 cursor-pointer items-center justify-center rounded-full border border-line-slate bg-surface text-fg-body transition-colors hover:border-accent hover:text-accent"
-                  >
-                    <CameraIcon size={15} />
-                  </button>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    aria-label="Profile picture file"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      void editor.onAvatarPick(file);
-                    }}
-                  />
-                </span>
-              </div>
-              {editor.avatar && (
-                <div className="mt-2 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={editor.removeAvatar}
-                    className="cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
-                  >
-                    Remove photo
-                  </button>
-                </div>
-              )}
-              {editor.nameTaken && (
-                <p
-                  role="alert"
-                  className="mt-2 text-center text-[12px] text-danger"
-                >
-                  That username is taken.
-                </p>
-              )}
+        <div className="mt-10 flex flex-col gap-8 pb-8">
+          {/* The money headline spans the page: four cards crushed into a
+              sidebar column read as a scoreboard nobody can scan. */}
+          <PnlCards totals={history.data?.totals ?? null} ethUsd={ethUsd} />
 
-              <div className="mt-6 flex flex-col">
-                <Row label="Address">
-                  <span className="flex items-center gap-2.5">
-                    <span className="tnum text-[15px] font-semibold text-fg">
-                      {wallet.address ? shortAddr(wallet.address) : "—"}
+          <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start">
+            {/* LEFT: identity + trophies + portfolio + staking */}
+            <div className="flex flex-col gap-6">
+              {/* Identity block (uncarded, panel-consistent) */}
+              <div className="flex flex-col">
+                <div className="flex justify-center">
+                  <span className="relative">
+                    <span className="flex size-28 items-center justify-center overflow-hidden rounded-full border border-line-slate bg-surface">
+                      {editor.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local data URL, next/image adds nothing
+                        <img
+                          src={editor.avatar}
+                          alt="Profile picture"
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <PersonIcon size={44} className="text-fg-body" />
+                      )}
                     </span>
                     <button
                       type="button"
-                      aria-label="Copy address"
-                      onClick={copy}
-                      className={`cursor-pointer transition-colors ${
-                        copied ? "text-accent" : "text-fg-muted hover:text-fg"
-                      }`}
+                      aria-label="Upload profile picture"
+                      onClick={() => fileRef.current?.click()}
+                      className="focus-ring absolute -bottom-0.5 -right-0.5 flex size-9 cursor-pointer items-center justify-center rounded-full border border-line-slate bg-surface text-fg-body transition-colors hover:border-accent hover:text-accent"
                     >
-                      {copied ? (
-                        <CheckIcon size={14} />
-                      ) : (
-                        <CopyIcon size={14} />
-                      )}
-                      <span aria-live="polite" className="sr-only">
-                        {copied ? "Address copied" : ""}
-                      </span>
+                      <CameraIcon size={15} />
                     </button>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      aria-label="Profile picture file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        void editor.onAvatarPick(file);
+                      }}
+                    />
                   </span>
-                </Row>
-                <Row label="Username">
-                  {editor.editing ? (
-                    <span className="flex items-center gap-2">
-                      <input
-                        ref={inputRef}
-                        value={editor.draft}
-                        onChange={(e) => editor.setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") editor.saveUsername();
-                          if (e.key === "Escape") editor.cancelEdit();
-                        }}
-                        aria-label="Username"
-                        className="tnum h-8 w-36 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
-                      />
-                      <button
-                        type="button"
-                        onClick={editor.saveUsername}
-                        className="cursor-pointer text-[13px] font-bold text-accent"
-                      >
-                        Save
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <span className="min-w-0 truncate text-[15px] font-semibold text-fg">
-                        {editor.username || (
-                          <span className="text-fg-muted">None</span>
-                        )}
+                </div>
+                {editor.avatar && (
+                  <div className="mt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={editor.removeAvatar}
+                      className="cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                    >
+                      Remove photo
+                    </button>
+                  </div>
+                )}
+                {editor.nameTaken && (
+                  <p
+                    role="alert"
+                    className="mt-2 text-center text-[12px] text-danger"
+                  >
+                    That username is taken.
+                  </p>
+                )}
+
+                <div className="mt-6 flex flex-col">
+                  <Row label="Address">
+                    <span className="flex items-center gap-2.5">
+                      <span className="tnum text-[15px] font-semibold text-fg">
+                        {wallet.address ? shortAddr(wallet.address) : "—"}
                       </span>
                       <button
                         type="button"
-                        aria-label="Edit username"
-                        onClick={editor.startEdit}
-                        className="shrink-0 cursor-pointer text-fg-muted transition-colors hover:text-fg"
+                        aria-label="Copy address"
+                        onClick={copy}
+                        className={`cursor-pointer transition-colors ${
+                          copied ? "text-accent" : "text-fg-muted hover:text-fg"
+                        }`}
                       >
-                        <PencilIcon size={14} />
+                        {copied ? (
+                          <CheckIcon size={14} />
+                        ) : (
+                          <CopyIcon size={14} />
+                        )}
+                        <span aria-live="polite" className="sr-only">
+                          {copied ? "Address copied" : ""}
+                        </span>
                       </button>
                     </span>
-                  )}
-                </Row>
-                <Row label="Discord">
-                  {editor.discord ? (
-                    editor.discord.username ? (
-                      <span className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-fg">
-                        <DiscordIcon
-                          size={15}
-                          className="shrink-0 text-fg-muted"
+                  </Row>
+                  <Row label="Username">
+                    {editor.editing ? (
+                      <span className="flex items-center gap-2">
+                        <input
+                          ref={inputRef}
+                          value={editor.draft}
+                          onChange={(e) => editor.setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") editor.saveUsername();
+                            if (e.key === "Escape") editor.cancelEdit();
+                          }}
+                          aria-label="Username"
+                          className="tnum h-8 w-36 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
                         />
-                        <span className="min-w-0 truncate">
-                          {editor.discord.username}
-                        </span>
                         <button
                           type="button"
-                          onClick={() => void editor.disconnectDiscord()}
-                          className="shrink-0 cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                          onClick={editor.saveUsername}
+                          className="cursor-pointer text-[13px] font-bold text-accent"
                         >
-                          Unlink
+                          Save
                         </button>
                       </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => editor.discord?.link()}
-                        className="flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
-                      >
-                        <DiscordIcon size={15} />
-                        Connect
-                      </button>
-                    )
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="flex h-8 items-center gap-2 rounded-full border-[1.5px] border-line-slate px-3 text-[13px] font-bold text-fg-disabled"
-                    >
-                      <DiscordIcon size={15} />
-                      Soon
-                    </button>
-                  )}
-                </Row>
-                <Row label="Explorer">
-                  {wallet.address ? (
-                    <a
-                      href={addressUrl(wallet.address)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="tnum text-[14px] font-semibold text-fg-body transition-colors hover:text-accent"
-                    >
-                      View onchain
-                    </a>
-                  ) : (
-                    <span className="text-[14px] text-fg-muted">—</span>
-                  )}
-                </Row>
-              </div>
-            </div>
-
-            <PnlCards
-              totals={history.data?.totals ?? null}
-              ethUsd={ethUsd}
-            />
-
-            {history.data?.totals && <Trophies totals={history.data.totals} />}
-
-            <ChartCard title="Portfolio" headingAs="h2">
-              <div className="flex flex-col">
-                <PeaRow label="Wallet" value={b?.peaFormatted ?? "—"} />
-                <PeaRow label="Staked" value={fmtToken(staked, 2)} />
-                <PeaRow label="Harvested" value={fmtToken(refined, 2)} />
-                <PeaRow label="Unharvested" value={fmtToken(unrefined, 2)} />
-                <PeaRow
-                  label="Total"
-                  value={total === null ? "—" : fmtToken(total, 2)}
-                  strong
-                />
-                <Row label="ETH">
-                  <span className="flex items-center gap-2">
-                    <EthIcon size={15} className="text-fg" />
-                    <span className="tnum text-[15px] font-semibold text-fg">
-                      {b?.ethFormatted ?? "—"}
-                    </span>
-                    {b && ethUsd > 0 && (
-                      <span className="tnum text-[12.5px] text-fg-muted">
-                        {fmtUsd(b.eth * ethUsd)}
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className="min-w-0 truncate text-[15px] font-semibold text-fg">
+                          {editor.username || (
+                            <span className="text-fg-muted">None</span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Edit username"
+                          onClick={editor.startEdit}
+                          className="shrink-0 cursor-pointer text-fg-muted transition-colors hover:text-fg"
+                        >
+                          <PencilIcon size={14} />
+                        </button>
                       </span>
                     )}
-                  </span>
-                </Row>
+                  </Row>
+                  <Row label="Discord">
+                    {editor.discord ? (
+                      editor.discord.username ? (
+                        <span className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-fg">
+                          <DiscordIcon
+                            size={15}
+                            className="shrink-0 text-fg-muted"
+                          />
+                          <span className="min-w-0 truncate">
+                            {editor.discord.username}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void editor.disconnectDiscord()}
+                            className="shrink-0 cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                          >
+                            Unlink
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => editor.discord?.link()}
+                          className="flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
+                        >
+                          <DiscordIcon size={15} />
+                          Connect
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="flex h-8 items-center gap-2 rounded-full border-[1.5px] border-line-slate px-3 text-[13px] font-bold text-fg-disabled"
+                      >
+                        <DiscordIcon size={15} />
+                        Soon
+                      </button>
+                    )}
+                  </Row>
+                  <Row label="Explorer">
+                    {wallet.address ? (
+                      <a
+                        href={addressUrl(wallet.address)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="tnum text-[14px] font-semibold text-fg-body transition-colors hover:text-accent"
+                      >
+                        View onchain
+                      </a>
+                    ) : (
+                      <span className="text-[14px] text-fg-muted">—</span>
+                    )}
+                  </Row>
+                </div>
               </div>
-            </ChartCard>
 
-            <ChartCard title="Staking" headingAs="h2">
-              <div className="flex flex-col">
-                <PeaRow label="Staked" value={fmtToken(staked, 2)} />
-                <Row label="Pending yield">
-                  <span className="tnum text-[15px] font-semibold text-fg">
-                    <TickingYield
-                      pendingYield={stakingPos.data?.pendingYield}
-                      stakedPea={staked}
-                      aprPct={null}
-                      address={wallet.address}
-                      pollChain
-                    />
-                  </span>
-                </Row>
-              </div>
-            </ChartCard>
+              {history.data?.totals && (
+                <Trophies totals={history.data.totals} />
+              )}
+
+              <ChartCard title="Portfolio" headingAs="h2">
+                <div className="flex flex-col">
+                  <PeaRow label="Wallet" value={b?.peaFormatted ?? "—"} />
+                  <PeaRow label="Staked" value={fmtToken(staked, 2)} />
+                  <PeaRow label="Harvested" value={fmtToken(refined, 2)} />
+                  <PeaRow label="Unharvested" value={fmtToken(unrefined, 2)} />
+                  <PeaRow
+                    label="Total"
+                    value={total === null ? "—" : fmtToken(total, 2)}
+                    strong
+                  />
+                  <Row label="ETH">
+                    <span className="flex items-center gap-2">
+                      <EthIcon size={15} className="text-fg" />
+                      <span className="tnum text-[15px] font-semibold text-fg">
+                        {b?.ethFormatted ?? "—"}
+                      </span>
+                      {b && ethUsd > 0 && (
+                        <span className="tnum text-[12.5px] text-fg-muted">
+                          {fmtUsd(b.eth * ethUsd)}
+                        </span>
+                      )}
+                    </span>
+                  </Row>
+                </div>
+              </ChartCard>
+
+              <ChartCard title="Staking" headingAs="h2">
+                <div className="flex flex-col">
+                  <PeaRow label="Staked" value={fmtToken(staked, 2)} />
+                  <Row label="Pending yield">
+                    <span className="tnum text-[15px] font-semibold text-fg">
+                      <TickingYield
+                        pendingYield={stakingPos.data?.pendingYield}
+                        stakedPea={staked}
+                        aprPct={null}
+                        address={wallet.address}
+                        pollChain
+                      />
+                    </span>
+                  </Row>
+                </div>
+              </ChartCard>
+            </div>
+
+            {/* RIGHT: round history */}
+            <HistoryCard rounds={history.data?.rounds ?? []} />
           </div>
-
-          {/* RIGHT: round history */}
-          <HistoryCard rounds={history.data?.rounds ?? []} />
         </div>
       )}
-    </div>
+    </WideContainer>
   );
 }
