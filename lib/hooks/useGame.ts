@@ -17,11 +17,14 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useEngineStore } from "@/lib/engineContext";
 import { liveEthPrice, livePeaPrice } from "@/lib/livePrices";
 import {
+  deriveUserTotals,
   toFeedItemVM,
   toPricesVM,
   toProtocolStatsVM,
   toRoundSummaryVM,
   toRoundVM,
+  toUserRoundVM,
+  toUserTotalsVM,
 } from "@/lib/mappers";
 import type { EngineSnapshot, UserGameState } from "@/lib/mock/engine";
 import type {
@@ -32,6 +35,7 @@ import type {
   RoundPhase,
   RoundSummaryVM,
   RoundVM,
+  UserHistoryVM,
 } from "@/lib/types";
 
 function hookStatus(snap: EngineSnapshot): "loading" | "live" | "error" {
@@ -77,6 +81,22 @@ export function useRoundHistory(): HookResult<RoundSummaryVM[]> {
     () => (snap.bootstrapped ? snap.history.map(toRoundSummaryVM) : undefined),
     [snap.bootstrapped, snap.history],
   );
+  return { data, status: hookStatus(snap) };
+}
+
+/** The connected user's settled rounds + lifetime totals (profile page).
+ * Mock: totals fold over the COMPLETE engine slice; live mode (P2) will
+ * take both from the backend instead — never fold a paginated window. */
+export function useUserRounds(): HookResult<UserHistoryVM> {
+  const snap = useSnapshot();
+  const data = useMemo(() => {
+    if (!snap.bootstrapped) return undefined;
+    const totals = deriveUserTotals(snap.userRounds);
+    return {
+      rounds: snap.userRounds.map(toUserRoundVM),
+      totals: totals ? toUserTotalsVM(totals) : null,
+    };
+  }, [snap.bootstrapped, snap.userRounds]);
   return { data, status: hookStatus(snap) };
 }
 

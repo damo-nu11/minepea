@@ -221,6 +221,84 @@ export interface UserGameState {
   autoRemaining: number;
 }
 
+/** One settled round the connected user mined (newest first in the
+ * store slice). Derived at SETTLEMENT from the round's events + summary
+ * (never from claim state — plan reference/profile-plan.md §3); the live
+ * backend will serve the same shape through the translate seam. */
+export interface UserRoundWire {
+  roundId: number;
+  settledAt: number;
+  /** no_winner = the drawn tile was uncovered; money-identical to lost
+   * for the user, narratively distinct. */
+  outcome: "won" | "lost" | "no_winner";
+  /** Meaningful only on wins (the 1 PEA split coin flip). */
+  isSplit: boolean;
+  peapotHit: boolean;
+  winningTile: TileId;
+  tiles: TileId[];
+  deployedWei: string;
+  wonEthWei: string;
+  /** The 1-PEA emission share only; the peapot rides separately. */
+  wonPeaWei: string;
+  peapotPeaWei: string;
+  source: "manual" | "automine";
+}
+
+/** Lifetime aggregates folded from the COMPLETE round log (mock) or
+ * served by the backend (live). Raw values only. */
+export interface UserTotalsWire {
+  roundsPlayed: number;
+  roundsWon: number;
+  peapotHits: number;
+  totalDeployedWei: string;
+  totalWonEthWei: string;
+  totalWonPeaWei: string;
+  bestRound: { roundId: number; netEthWei: string } | null;
+  bestWinStreak: number;
+  currentWinStreak: number;
+  firstPlayedAt: number;
+  asOfRoundId: number;
+}
+
+export interface UserRoundVM extends UserRoundWire {
+  deployedEth: number;
+  deployedFormatted: string;
+  wonEth: number;
+  wonEthFormatted: string;
+  /** wonEth − deployed (signed). */
+  netEth: number;
+  netEthFormatted: string;
+  /** Emission + peapot combined for display. */
+  wonPea: number;
+  wonPeaFormatted: string;
+  resultLabel: "Won" | "Won split" | "Lost" | "No winner";
+}
+
+export interface UserTotalsVM {
+  roundsPlayed: number;
+  roundsWon: number;
+  peapotHits: number;
+  winRatePct: number;
+  winRateFormatted: string;
+  totalDeployedEth: number;
+  totalDeployedFormatted: string;
+  netEth: number;
+  netEthFormatted: string;
+  totalWonPea: number;
+  totalWonPeaFormatted: string;
+  bestRound: { roundId: number; netEth: number; netEthFormatted: string } | null;
+  bestWinStreak: number;
+  currentWinStreak: number;
+  firstPlayedAt: number;
+  asOfRoundId: number;
+}
+
+export interface UserHistoryVM {
+  rounds: UserRoundVM[];
+  /** null until the user has at least one settled round. */
+  totals: UserTotalsVM | null;
+}
+
 /** The full game snapshot every game store publishes. */
 export interface EngineSnapshot {
   /** false only in the server/hydration snapshot. */
@@ -240,6 +318,9 @@ export interface EngineSnapshot {
   prices: PricesWire;
   protocolStats: ProtocolStatsWire;
   user: UserGameState;
+  /** The connected user's settled rounds, newest first (profile page).
+   * Slice ref changes only at settlement — selector-friendly. */
+  userRounds: UserRoundWire[];
 }
 
 export interface DeployParams {

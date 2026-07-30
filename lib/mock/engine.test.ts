@@ -217,6 +217,28 @@ describe("deploy()", () => {
     unsub();
   });
 
+  it("settlement appends the user's round to userRounds (profile history)", async () => {
+    const e = makeEngine();
+    const unsub = e.subscribe(() => {});
+    expect(e.getSnapshot().userRounds).toEqual([]);
+    const p = e.deploy(PARAMS);
+    await vi.advanceTimersByTimeAsync(600);
+    await p;
+    const playedRound = e.getSnapshot().round.roundId;
+    // Cross the round end so the engine settles it.
+    await vi.advanceTimersByTimeAsync(ROUND_DURATION_MS + 500);
+    const rows = e.getSnapshot().userRounds;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].roundId).toBe(playedRound);
+    expect(rows[0].tiles).toEqual([0, 1, 2]);
+    expect(rows[0].deployedWei).toBe(ethToWei(0.03));
+    expect(rows[0].source).toBe("manual");
+    // A settled round the user sat out appends nothing.
+    await vi.advanceTimersByTimeAsync(SETTLING_MS + ROUND_DURATION_MS + 1000);
+    expect(e.getSnapshot().userRounds).toHaveLength(1);
+    unsub();
+  });
+
   it("rejects a second deploy in the same round", async () => {
     const e = makeEngine();
     const unsub = e.subscribe(() => {});

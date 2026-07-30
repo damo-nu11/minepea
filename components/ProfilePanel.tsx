@@ -5,13 +5,15 @@
  * drawer): clicking the CONNECTED pill opens this instead of disconnecting.
  * Right-side drawer — avatar with local photo upload, address + copy icon,
  * localStorage username with pencil edit, Discord linking (Privy-native via
- * the useDiscord seam; "Soon" under the stub), PEA portfolio (Wallet /
- * Staked / Harvested / Unharvested / Total), Disconnect at the bottom.
+ * the useDiscord seam; "Soon" under the stub), a "View full profile" link
+ * to /profile, PEA portfolio (Wallet / Staked / Harvested / Unharvested /
+ * Total), Disconnect at the bottom.
  *
- * Audit hardening (2026-07-13, all findings adversarially verified):
- * - localStorage access is try/catch-guarded — with storage blocked
- *   (Chrome "Block all cookies") a bare read here crashed EVERY route,
- *   since the header mounts this component everywhere
+ * The editing STATE + mutations live in lib/hooks/useProfileEditor
+ * (extracted 2026-07-30 for the /profile page — one seam, two surfaces,
+ * zero drift; the hook is event-subscribed so a save on either surface
+ * updates the other). This file keeps only the drawer chrome and its
+ * audit-pinned dialog contract:
  * - real dialog focus management: focus moves to the close button on
  *   open, Tab is trapped inside, and focus returns to the opener on close
  * - the backdrop is a non-focusable div (a <button> added an invisible
@@ -21,14 +23,13 @@
  *   scope same-node listeners); transient state resets when it closes;
  *   the page scroll-locks while the drawer is open
  * - the file input resets after each pick so re-choosing the same file
- *   works; avatar persistence tolerates quota/blocked storage
- * - copy feedback timer is tracked (no overlap truncation / stale fires)
- *
- * Shell scope: username + avatar persist in localStorage only (hydrated in
- * effects — Convention 7); Staked/Harvested/Unharvested read 0 until a real
- * backend owns them. Avatar uploads downscale to 128px JPEG client-side.
+ *   works; copy feedback timer is tracked
+ * - "View full profile" calls onClose on navigate: the portal drawer does
+ *   not unmount on route change and its scroll lock would otherwise leave
+ *   body{overflow:hidden} stuck on the destination page
  */
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -36,113 +37,14 @@ import {
   CheckIcon,
   CopyIcon,
   DiscordIcon,
-  PeaIcon,
   PencilIcon,
   PersonIcon,
 } from "@/components/icons";
+import { PeaRow, Row } from "@/components/profile/rows";
 import { fmtToken, shortAddr } from "@/lib/format";
+import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
-import {
-  useAccessToken,
-  useBalances,
-  useDiscord,
-  useWallet,
-} from "@/lib/walletContext";
-import {
-  announceProfileChange,
-  avatarKey,
-  invalidateProfile,
-  purgeLegacyProfile,
-  pushProfile,
-  readLocalProfile,
-  usernameKey,
-  useProfiles,
-} from "@/lib/profile";
-
-// Keys + change event live in lib/profile.ts (shared with the MINERS
-// panel's YOU rows, which subscribe via useLocalProfile).
-const AVATAR_SIZE = 128;
-
-/** localStorage that never throws (blocked storage / quota — audit). */
-function safeSet(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Blocked or quota-exceeded — the value lives for this session only.
-  }
-}
-
-/** File → square-cropped, downscaled JPEG data URL (localStorage-sized). */
-function fileToAvatar(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const side = Math.min(img.width, img.height);
-      const canvas = document.createElement("canvas");
-      canvas.width = AVATAR_SIZE;
-      canvas.height = AVATAR_SIZE;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("canvas unavailable"));
-      ctx.drawImage(
-        img,
-        (img.width - side) / 2,
-        (img.height - side) / 2,
-        side,
-        side,
-        0,
-        0,
-        AVATAR_SIZE,
-        AVATAR_SIZE,
-      );
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("unreadable image"));
-    };
-    img.src = url;
-  });
-}
-
-function Row({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex h-10 items-center justify-between gap-4">
-      <span className="shrink-0 text-[15px] text-fg-muted">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function PeaRow({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <Row label={label}>
-      <span className="flex items-center gap-2">
-        <PeaIcon size={15} className="text-accent" />
-        <span
-          className={`tnum text-[15px] text-fg ${strong ? "font-bold" : "font-semibold"}`}
-        >
-          {value}
-        </span>
-      </span>
-    </Row>
-  );
-}
+import { useBalances, useWallet } from "@/lib/walletContext";
 
 export function ProfilePanel({
   open,
@@ -152,52 +54,13 @@ export function ProfilePanel({
   onClose(): void;
 }) {
   const { address, disconnect } = useWallet();
-  // Storage keys and shared rows are both lowercased — one normalisation
-  // point so a checksummed address can never read a key it did not write.
-  const addr = address?.toLowerCase() ?? null;
-  const sharedRow = useProfiles(addr ? [addr] : []).get(addr ?? "");
+  const editor = useProfileEditor();
   const balances = useBalances();
-  const getToken = useAccessToken();
-  const discord = useDiscord();
   // Live (API mode) portfolio + claimable rewards; both hooks return
   // undefined data in the mock shell, keeping the original zeroed rows.
   const stakingPos = useStakingPosition();
   const rewards = useRewards();
   const [copied, setCopied] = useState(false);
-  const [username, setUsername] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [avatar, setAvatar] = useState<string | null>(null);
-  /** Shared-profile write rejected: username already taken (409). */
-  const [nameTaken, setNameTaken] = useState(false);
-  // Discord link registration (Supabase social_connections + community
-  // roles). Runs whenever the panel sees a linked Discord: the route is
-  // idempotent, verifies everything against Privy server-side, and doubles
-  // as an on-demand role refresh. One POST per (address, username) pair.
-  const registeredFor = useRef<string | null>(null);
-  const discordUsername = discord?.username ?? null;
-  useEffect(() => {
-    if (!discordUsername || !address || !getToken) return;
-    const key = `${address}:${discordUsername}`;
-    if (registeredFor.current === key) return;
-    registeredFor.current = key;
-    void getToken()
-      .then((token) => {
-        if (!token) return;
-        return fetch("/api/discord/register", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ address }),
-        });
-      })
-      .catch(() => {
-        // Registration is additive; a failed attempt retries next open.
-        registeredFor.current = null;
-      });
-  }, [discordUsername, address, getToken]);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -209,57 +72,19 @@ export function ProfilePanel({
   // proven live; jsdom hid it by mounting React on a container div).
   const editingRef = useRef(false);
   useEffect(() => {
-    editingRef.current = editing;
-  }, [editing]);
+    editingRef.current = editor.editing;
+  }, [editor.editing]);
 
   // Transient state must not survive a close/reopen (audit): reset via the
   // adjust-state-during-render pattern the moment the drawer is closed.
-  if (!open && (editing || copied || draft !== "")) {
-    setEditing(false);
+  if (!open && (editor.editing || copied || editor.draft !== "")) {
+    editor.cancelEdit();
     setCopied(false);
-    setDraft("");
   }
-
-  // localStorage only after mount (Convention 7 — hydration safety),
-  // guarded (audit: bare reads crash when the browser blocks storage).
-  // Keyed on the ADDRESS, not mount: this used to run once with an empty dep
-  // array against browser-global keys, so connecting a second wallet kept the
-  // first one's name and photo on screen and, worse, let them be published
-  // to the second wallet's row. Disconnecting clears it for the same reason.
-  // Deferred: a synchronous setState in an effect body cascades renders.
-  useEffect(() => {
-    purgeLegacyProfile();
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      const local = readLocalProfile(addr);
-      setUsername(local.username ?? "");
-      setAvatar(local.avatar);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [addr]);
-
-  // Fall back to the shared row so a profile follows the WALLET rather than
-  // the browser that set it: on a new device local storage is empty while
-  // every other miner already sees the name. Local always wins, so this can
-  // never overwrite an edit in progress.
-  useEffect(() => {
-    if (!sharedRow) return;
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setUsername((u) => u || (sharedRow.username ?? ""));
-      setAvatar((a) => a ?? sharedRow.avatar ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [sharedRow]);
 
   // Dialog keyboard contract (audit): move focus in on open, trap Tab,
   // Escape closes, and focus returns to the opener on close (cleanup).
+  const cancelEdit = editor.cancelEdit;
   useEffect(() => {
     if (!open) return;
     const opener = document.activeElement as HTMLElement | null;
@@ -269,7 +94,7 @@ export function ProfilePanel({
         // Mid-edit Escape cancels the EDIT; only a second Escape closes.
         if (editingRef.current) {
           editingRef.current = false;
-          setEditing(false);
+          cancelEdit();
         } else {
           onClose();
         }
@@ -301,11 +126,11 @@ export function ProfilePanel({
       document.removeEventListener("keydown", onKey);
       opener?.focus();
     };
-  }, [open, onClose]);
+  }, [open, onClose, cancelEdit]);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
+    if (editor.editing) inputRef.current?.focus();
+  }, [editor.editing]);
 
   // Scroll-lock the page while the drawer is open (audit: wheel over the
   // backdrop scrolled the page behind the "modal").
@@ -335,83 +160,6 @@ export function ProfilePanel({
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 1500);
     });
-  };
-
-  // Shared-profile write-through (Supabase via /api/profile). Fire-and-
-  // forget: local state is already saved; a lost write self-heals on the
-  // next save. "taken" surfaces inline under the username row.
-  const syncRemote = (
-    nextUsername: string | null,
-    nextAvatar: string | null,
-  ) => {
-    if (!addr) return;
-    invalidateProfile(addr);
-    void pushProfile({
-      address: addr,
-      username: nextUsername,
-      avatar: nextAvatar,
-      getToken,
-    }).then((r) => setNameTaken(r === "taken"));
-  };
-
-  const saveUsername = () => {
-    if (!addr) return;
-    const clean = draft.trim().slice(0, 24);
-    setUsername(clean);
-    safeSet(usernameKey(addr), clean);
-    announceProfileChange();
-    setEditing(false);
-    syncRemote(clean || null, avatar);
-  };
-
-  const onAvatarPick = async (file: File | undefined) => {
-    if (!file || !addr) return;
-    try {
-      const dataUrl = await fileToAvatar(file);
-      setAvatar(dataUrl);
-      safeSet(avatarKey(addr), dataUrl);
-      announceProfileChange();
-      syncRemote(username || null, dataUrl);
-    } catch {
-      // Unreadable file — keep the current avatar.
-    }
-  };
-
-  const disconnectDiscord = async () => {
-    if (!discord) return;
-    try {
-      // Server first: revoke roles + null the row while the link still
-      // exists, THEN unlink from Privy.
-      if (address && getToken) {
-        const token = await getToken();
-        if (token) {
-          await fetch("/api/discord/disconnect", {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ address }),
-          });
-        }
-      }
-      await discord.unlink();
-      registeredFor.current = null;
-    } catch {
-      // Leave the link visible; the user can retry.
-    }
-  };
-
-  const removeAvatar = () => {
-    if (!addr) return;
-    setAvatar(null);
-    try {
-      localStorage.removeItem(avatarKey(addr));
-    } catch {
-      // Storage blocked — the state reset still clears the session.
-    }
-    announceProfileChange();
-    syncRemote(username || null, null);
   };
 
   const b = balances.data;
@@ -453,10 +201,10 @@ export function ProfilePanel({
         <div className="mt-2 flex justify-center">
           <span className="relative">
             <span className="flex size-24 items-center justify-center overflow-hidden rounded-full border border-line-slate bg-surface">
-              {avatar ? (
+              {editor.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element -- local data URL, next/image adds nothing
                 <img
-                  src={avatar}
+                  src={editor.avatar}
                   alt="Profile picture"
                   className="size-full object-cover"
                 />
@@ -482,23 +230,23 @@ export function ProfilePanel({
                 const file = e.target.files?.[0];
                 // Reset so picking the SAME file again re-fires (audit).
                 e.target.value = "";
-                void onAvatarPick(file);
+                void editor.onAvatarPick(file);
               }}
             />
           </span>
         </div>
-        {avatar && (
+        {editor.avatar && (
           <div className="mt-2 flex justify-center">
             <button
               type="button"
-              onClick={removeAvatar}
+              onClick={editor.removeAvatar}
               className="cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
             >
               Remove photo
             </button>
           </div>
         )}
-        {nameTaken && (
+        {editor.nameTaken && (
           <p role="alert" className="mt-2 text-center text-[12px] text-danger">
             That username is taken.
           </p>
@@ -526,14 +274,14 @@ export function ProfilePanel({
             </span>
           </Row>
           <Row label="Username">
-            {editing ? (
+            {editor.editing ? (
               <span className="flex items-center gap-2">
                 <input
                   ref={inputRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  value={editor.draft}
+                  onChange={(e) => editor.setDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") saveUsername();
+                    if (e.key === "Enter") editor.saveUsername();
                     // Escape is handled by the drawer's document listener
                     // (cancels the edit there — stopPropagation can't work
                     // across same-node listeners; see editingRef above).
@@ -543,7 +291,7 @@ export function ProfilePanel({
                 />
                 <button
                   type="button"
-                  onClick={saveUsername}
+                  onClick={editor.saveUsername}
                   className="cursor-pointer text-[13px] font-bold text-accent"
                 >
                   Save
@@ -552,15 +300,14 @@ export function ProfilePanel({
             ) : (
               <span className="flex min-w-0 items-center gap-2.5">
                 <span className="min-w-0 truncate text-[15px] font-semibold text-fg">
-                  {username || <span className="text-fg-muted">None</span>}
+                  {editor.username || (
+                    <span className="text-fg-muted">None</span>
+                  )}
                 </span>
                 <button
                   type="button"
                   aria-label="Edit username"
-                  onClick={() => {
-                    setDraft(username);
-                    setEditing(true);
-                  }}
+                  onClick={editor.startEdit}
                   className="shrink-0 cursor-pointer text-fg-muted transition-colors hover:text-fg"
                 >
                   <PencilIcon size={14} />
@@ -569,14 +316,16 @@ export function ProfilePanel({
             )}
           </Row>
           <Row label="Discord">
-            {discord ? (
-              discord.username ? (
+            {editor.discord ? (
+              editor.discord.username ? (
                 <span className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-fg">
                   <DiscordIcon size={15} className="shrink-0 text-fg-muted" />
-                  <span className="min-w-0 truncate">{discord.username}</span>
+                  <span className="min-w-0 truncate">
+                    {editor.discord.username}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => void disconnectDiscord()}
+                    onClick={() => void editor.disconnectDiscord()}
                     className="shrink-0 cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
                   >
                     Unlink
@@ -586,15 +335,15 @@ export function ProfilePanel({
                 <span className="flex min-w-0 flex-col items-end gap-1">
                   <button
                     type="button"
-                    onClick={() => discord.link()}
+                    onClick={() => editor.discord?.link()}
                     className="flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
                   >
                     <DiscordIcon size={15} />
                     Connect
                   </button>
-                  {discord.error && (
+                  {editor.discord.error && (
                     <span role="alert" className="text-[12px] text-danger">
-                      {discord.error}
+                      {editor.discord.error}
                     </span>
                   )}
                 </span>
@@ -612,6 +361,16 @@ export function ProfilePanel({
             )}
           </Row>
         </div>
+
+        {/* Full page: history, PnL and stats live there; closing first
+            keeps the drawer's scroll lock from following us. */}
+        <Link
+          href="/profile"
+          onClick={onClose}
+          className="focus-ring mt-6 flex h-[42px] items-center justify-center rounded-full border-[1.5px] border-accent text-[14px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
+        >
+          View full profile
+        </Link>
 
         <h2 className="font-wordmark mt-8 text-[20px] font-bold tracking-[-0.01em] text-fg">
           Portfolio

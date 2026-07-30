@@ -36,4 +36,5 @@ export const SERVER_SNAPSHOT: EngineSnapshot = {
     protocolRev7dWei: "0",
   },
   user: { deployedRound: null, deployedTiles: [], autoRemaining: 0 },
+  userRounds: [],
 };

@@ -19,6 +19,7 @@ const SPLITS: Record<string, number> = {
   Links: 3, // Lin|ks.
   Terms: 3, // Ter|ms.
   Privacy: 4, // Priv|acy.
+  Profile: 4, // Prof|ile.
 };
 export function PageHeader({
   title,

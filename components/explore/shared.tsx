@@ -44,6 +44,7 @@ export function StatCard({
   value,
   caption,
   accent = false,
+  tone,
 }: {
   title: string;
   value: string;
@@ -51,6 +52,9 @@ export function StatCard({
    * market-open countdown. */
   caption: React.ReactNode;
   accent?: boolean;
+  /** Signed-value coloring (profile PnL): up = lime, down = coral.
+   * Overrides `accent` when set. */
+  tone?: "up" | "down";
 }) {
   return (
     // @container + a cqw-clamped value: the numeral sizes off the CARD's
@@ -63,7 +67,15 @@ export function StatCard({
         <span className="text-[13px] font-medium text-fg-muted">{title}</span>
         <div className="flex flex-col items-center gap-1 py-2">
           <span
-            className={`tnum max-w-full text-[clamp(16px,12.5cqw,34px)] font-bold leading-none ${accent ? "text-accent" : "text-fg"}`}
+            className={`tnum max-w-full text-[clamp(16px,12.5cqw,34px)] font-bold leading-none ${
+              tone === "up"
+                ? "text-accent"
+                : tone === "down"
+                  ? "text-danger"
+                  : accent
+                    ? "text-accent"
+                    : "text-fg"
+            }`}
           >
             {value}
           </span>

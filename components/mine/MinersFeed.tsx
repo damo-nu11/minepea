@@ -34,15 +34,8 @@ import { IS_API_MODE } from "@/lib/engineContext";
 import { useMinersFeed, useRound, useRoundHistory } from "@/lib/hooks/useGame";
 import { useLocalProfile, useProfiles } from "@/lib/profile";
 import { useWallet } from "@/lib/walletContext";
-import {
-  TILE_ROT,
-  TILE_W,
-  TILE_XY,
-  VIEW_W,
-  VIEW_X,
-  VIEW_Y,
-} from "@/lib/vine/grow";
-import type { FeedItemVM, RoundSummaryVM, TileId } from "@/lib/types";
+import { BoardMini } from "@/components/mine/BoardMini";
+import type { FeedItemVM, RoundSummaryVM } from "@/lib/types";
 
 const POPOVER_MARGIN = 8;
 
@@ -97,67 +90,9 @@ function MinerPopover({
       <p className="sr-only">
         {`Previous round: deployed ${item.ethFormatted} ETH across ${item.tileCount} ${item.tileCount === 1 ? "tile" : "tiles"}, ${coveredWinner ? "including" : "not including"} the winning tile ${winningTile + 1}. ${peaWon > 0 ? `Won ${peaWon.toFixed(4)} PEA.` : "Won no PEA."}`}
       </p>
-      {/* A miniature of the REAL board: the same pentagon geometry the Mine
-          page renders, so the replica cannot drift from what it replays. */}
-      <svg
-        aria-hidden
-        viewBox={`${VIEW_X} ${VIEW_Y} ${VIEW_W} ${VIEW_W}`}
-        className="h-[226px] w-full"
-      >
-        {TILE_XY.map(([tx, ty], b) => {
-          const on = item.tiles.includes(b as TileId);
-          const win = b === winningTile;
-          // Winner marker OVERRIDES the deployed tint — it's the round's
-          // reference marker whether or not this miner covered it.
-          return (
-            <g
-              key={b}
-              transform={`rotate(${TILE_ROT[b].toFixed(2)} ${tx} ${ty})`}
-            >
-              <rect
-                x={tx - TILE_W / 2}
-                y={ty - TILE_W / 2}
-                width={TILE_W}
-                height={TILE_W}
-                rx="10"
-                fill={
-                  win
-                    ? "var(--color-fg)"
-                    : on
-                      ? "rgba(204,255,0,0.10)"
-                      : "transparent"
-                }
-                stroke={
-                  win
-                    ? "var(--color-fg)"
-                    : on
-                      ? "rgba(204,255,0,0.6)"
-                      : "rgba(46,58,0,0.6)"
-                }
-                strokeWidth="3"
-              />
-              <text
-                x={tx}
-                y={ty + 11}
-                textAnchor="middle"
-                transform={`rotate(${(-TILE_ROT[b]).toFixed(2)} ${tx} ${ty})`}
-                fontSize="30"
-                fontWeight={600}
-                fill={
-                  win
-                    ? "var(--color-on-light)"
-                    : on
-                      ? "var(--color-accent)"
-                      : "var(--color-fg-disabled)"
-                }
-                className="tnum"
-              >
-                {b + 1}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+      {/* A miniature of the REAL board — geometry-true replica shared
+          with the /profile history rows (components/mine/BoardMini). */}
+      <BoardMini tiles={item.tiles} winningTile={winningTile} />
       <dl aria-hidden className="mt-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <dt className="micro-label">Deployed</dt>

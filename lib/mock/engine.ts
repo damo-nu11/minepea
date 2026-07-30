@@ -37,6 +37,7 @@ import type {
   TileId,
   TileWire,
   UserGameState,
+  UserRoundWire,
 } from "@/lib/types";
 
 // Re-exported for existing consumers/tests; canonical homes are lib/types.ts
@@ -69,6 +70,9 @@ const SEED_ROUNDS = 60;
  * round streams ~250 more — the MINERS panel shows last round's miners. */
 export const FEED_LIMIT = 600;
 const HISTORY_LIMIT = 120;
+/** The user's own settled rounds kept for the profile (the previous
+ * build's history endpoint cap; totals fold over the full slice). */
+const USER_ROUNDS_LIMIT = 500;
 const DEPLOYS_PER_ROUND_MIN = 230;
 const DEPLOYS_PER_ROUND_MAX = 270;
 const MINER_POOL_SIZE = 400;
@@ -201,6 +205,60 @@ export function settleRound(
   };
 }
 
+/**
+ * Derive the USER's row for a settled round (profile history). Pure and
+ * exported for exact pins: mirrors the settlement's own math — per-tile
+ * stake is the event amount split evenly (deriveTiles), the ETH share is
+ * pro-rata by winning-tile stake, the 1-PEA emission follows the solo/
+ * split coin flip, and a peapot always splits pro-rata across the tile's
+ * coverers. Returns null when the user had no deploy in the round.
+ */
+export function deriveUserRound(
+  summary: RoundSummaryWire,
+  events: DeployEventWire[],
+  userAddress: Address,
+  source: "manual" | "automine",
+): UserRoundWire | null {
+  const ev = events.find((e) => e.miner === userAddress);
+  if (!ev) return null;
+  const per = BigInt(ev.amountWei) / BigInt(ev.tiles.length);
+  const covered = ev.tiles.includes(summary.winningTile);
+  const noWinners = summary.winnerCount === 0;
+  let wonEth = 0n;
+  let wonPea = 0n;
+  let peapotPea = 0n;
+  if (covered && !noWinners) {
+    const tileTotal = BigInt(
+      deriveTiles(events)[summary.winningTile].deployedWei,
+    );
+    if (tileTotal > 0n) {
+      wonEth = (BigInt(summary.winningsWei) * per) / tileTotal;
+      const EMISSION = 10n ** 18n; // the 1 PEA per round
+      wonPea = summary.isSplit
+        ? (EMISSION * per) / tileTotal
+        : summary.winner === userAddress
+          ? EMISSION
+          : 0n;
+      if (summary.motherlodePea)
+        peapotPea = (BigInt(summary.motherlodePea) * per) / tileTotal;
+    }
+  }
+  return {
+    roundId: summary.roundId,
+    settledAt: summary.settledAt,
+    outcome: noWinners ? "no_winner" : covered ? "won" : "lost",
+    isSplit: covered && !noWinners ? summary.isSplit : false,
+    peapotHit: covered && !noWinners && summary.motherlodePea !== null,
+    winningTile: summary.winningTile,
+    tiles: [...ev.tiles],
+    deployedWei: ev.amountWei,
+    wonEthWei: wonEth.toString(),
+    wonPeaWei: wonPea.toString(),
+    peapotPeaWei: peapotPea.toString(),
+    source,
+  };
+}
+
 // ─── The engine ──────────────────────────────────────────────────────────────
 
 export class MockEngine implements Store<EngineSnapshot>, GameActions {
@@ -232,6 +290,14 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
     autoRemaining: 0,
   };
   private userAutoParams: DeployParams | null = null;
+  /** Persisted at deploy(): a single-round deploy's address otherwise
+   * survives only on its feed event (profile-plan audit). */
+  private userAddress: Address | null = null;
+  /** How the CURRENT round's user deploy was placed (manual vs the
+   * auto-redeploy chain) — rides into that round's history row. */
+  private userSource: "manual" | "automine" = "manual";
+  /** The user's settled rounds, newest first (profile history). */
+  private userRounds: UserRoundWire[] = [];
 
   // Snapshot slice caching — identity changes only when the domain changed.
   private snapshot: EngineSnapshot | null = null;
@@ -305,6 +371,7 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
         prices: this.prices,
         protocolStats: this.buildProtocolStats(),
         user: this.user,
+        userRounds: this.userRounds,
       };
     }
     return this.snapshot;
@@ -334,6 +401,8 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
           reject(new Error("Nothing to deploy"));
           return;
         }
+        this.userAddress = params.miner;
+        this.userSource = "manual";
         this.applyUserDeploy(params);
         this.user = {
           deployedRound: this.roundId,
@@ -499,6 +568,25 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
           0,
           HISTORY_LIMIT,
         );
+        // The user's own row for the profile history — derived from the
+        // SAME events + summary the settlement used, appended here (the
+        // settle SITE), never inside pure settleRound (21 tests pin it).
+        if (
+          this.userAddress &&
+          this.user.deployedRound === this.lastSettled.roundId
+        ) {
+          const row = deriveUserRound(
+            this.lastSettled,
+            this.roundEvents,
+            this.userAddress,
+            this.userSource,
+          );
+          if (row)
+            this.userRounds = [row, ...this.userRounds].slice(
+              0,
+              USER_ROUNDS_LIMIT,
+            );
+        }
         this.phase = "settling";
         this.settlingUntil = t + SETTLING_MS;
         this.roundDirty = true;
@@ -512,6 +600,7 @@ export class MockEngine implements Store<EngineSnapshot>, GameActions {
       this.planRound();
       // Auto-redeploy for the user, if armed.
       if (this.userAutoParams && this.user.autoRemaining > 0) {
+        this.userSource = "automine";
         this.applyUserDeploy(this.userAutoParams);
         this.user = {
           deployedRound: this.roundId,

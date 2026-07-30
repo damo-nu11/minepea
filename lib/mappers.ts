@@ -5,7 +5,9 @@
 
 import {
   fmtInt,
+  fmtPct,
   fmtRoundId,
+  fmtToken,
   fmtTokenSmart,
   fmtUsd,
   fromWei,
@@ -24,6 +26,10 @@ import type {
   RoundWire,
   TileVM,
   TileWire,
+  UserRoundVM,
+  UserRoundWire,
+  UserTotalsVM,
+  UserTotalsWire,
 } from "@/lib/types";
 
 export function toTileVM(wire: TileWire): TileVM {
@@ -124,6 +130,123 @@ export function toProtocolStatsVM(wire: ProtocolStatsWire): ProtocolStatsVM {
     circulatingFormatted: fmtInt(fromWei(wire.circulatingPea)),
     buried7dFormatted: fmtInt(fromWei(wire.buried7dPea)),
     protocolRev7dFormatted: fmtInt(fromWei(wire.protocolRev7dWei)),
+  };
+}
+
+/** Signed ETH figure: "+0.0234" / "-0.0100" / "0" for exact zero. */
+function signedEth(v: number): string {
+  if (v === 0) return "0";
+  return `${v < 0 ? "-" : "+"}${fmtTokenSmart(Math.abs(v), 4)}`;
+}
+
+export function toUserRoundVM(wire: UserRoundWire): UserRoundVM {
+  const deployedEth = fromWei(wire.deployedWei);
+  const wonEth = fromWei(wire.wonEthWei);
+  const netEth = wonEth - deployedEth;
+  const wonPea = fromWei(wire.wonPeaWei) + fromWei(wire.peapotPeaWei);
+  return {
+    ...wire,
+    deployedEth,
+    deployedFormatted: fmtTokenSmart(deployedEth, 4),
+    wonEth,
+    wonEthFormatted: fmtTokenSmart(wonEth, 4),
+    netEth,
+    netEthFormatted: signedEth(netEth),
+    wonPea,
+    wonPeaFormatted: fmtToken(wonPea, 2),
+    resultLabel:
+      wire.outcome === "no_winner"
+        ? "No winner"
+        : wire.outcome === "lost"
+          ? "Lost"
+          : wire.isSplit
+            ? "Won split"
+            : "Won",
+  };
+}
+
+/**
+ * Fold the COMPLETE round log (newest first) into lifetime totals. Mock
+ * only: the slice is complete by construction there. Live mode gets
+ * totals from the backend instead — client aggregation over a paginated
+ * window is silently wrong (plan §3), which is why this takes the whole
+ * array and the hook never calls it on partial data.
+ */
+export function deriveUserTotals(
+  rounds: readonly UserRoundWire[],
+): UserTotalsWire | null {
+  if (rounds.length === 0) return null;
+  let deployed = 0n;
+  let wonEth = 0n;
+  let wonPea = 0n;
+  let roundsWon = 0;
+  let peapotHits = 0;
+  let best: { roundId: number; net: bigint } | null = null;
+  let bestStreak = 0;
+  let streak = 0;
+  // Chronological fold (the wire is newest-first) so streaks read forward.
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    const r = rounds[i];
+    deployed += BigInt(r.deployedWei);
+    wonEth += BigInt(r.wonEthWei);
+    wonPea += BigInt(r.wonPeaWei) + BigInt(r.peapotPeaWei);
+    if (r.outcome === "won") {
+      roundsWon += 1;
+      streak += 1;
+      if (streak > bestStreak) bestStreak = streak;
+    } else {
+      streak = 0;
+    }
+    if (r.peapotHit) peapotHits += 1;
+    const net = BigInt(r.wonEthWei) - BigInt(r.deployedWei);
+    if (best === null || net > best.net) best = { roundId: r.roundId, net };
+  }
+  return {
+    roundsPlayed: rounds.length,
+    roundsWon,
+    peapotHits,
+    totalDeployedWei: deployed.toString(),
+    totalWonEthWei: wonEth.toString(),
+    totalWonPeaWei: wonPea.toString(),
+    bestRound: best
+      ? { roundId: best.roundId, netEthWei: best.net.toString() }
+      : null,
+    bestWinStreak: bestStreak,
+    currentWinStreak: streak,
+    firstPlayedAt: rounds[rounds.length - 1].settledAt,
+    asOfRoundId: rounds[0].roundId,
+  };
+}
+
+export function toUserTotalsVM(wire: UserTotalsWire): UserTotalsVM {
+  const totalDeployedEth = fromWei(wire.totalDeployedWei);
+  const netEth = fromWei(wire.totalWonEthWei) - totalDeployedEth;
+  const totalWonPea = fromWei(wire.totalWonPeaWei);
+  const winRatePct =
+    wire.roundsPlayed > 0 ? (wire.roundsWon / wire.roundsPlayed) * 100 : 0;
+  return {
+    roundsPlayed: wire.roundsPlayed,
+    roundsWon: wire.roundsWon,
+    peapotHits: wire.peapotHits,
+    winRatePct,
+    winRateFormatted: fmtPct(winRatePct),
+    totalDeployedEth,
+    totalDeployedFormatted: fmtTokenSmart(totalDeployedEth, 4),
+    netEth,
+    netEthFormatted: signedEth(netEth),
+    totalWonPea,
+    totalWonPeaFormatted: fmtToken(totalWonPea, 2),
+    bestRound: wire.bestRound
+      ? {
+          roundId: wire.bestRound.roundId,
+          netEth: fromWei(wire.bestRound.netEthWei),
+          netEthFormatted: signedEth(fromWei(wire.bestRound.netEthWei)),
+        }
+      : null,
+    bestWinStreak: wire.bestWinStreak,
+    currentWinStreak: wire.currentWinStreak,
+    firstPlayedAt: wire.firstPlayedAt,
+    asOfRoundId: wire.asOfRoundId,
   };
 }
 
