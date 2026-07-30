@@ -42,7 +42,6 @@ import { BoardMini } from "@/components/mine/BoardMini";
 import { PageHeader, WideContainer } from "@/components/PageHeader";
 import { PeaRow, Row } from "@/components/profile/rows";
 import { TickingYield } from "@/components/stake/TickingYield";
-import { addressUrl } from "@/lib/contracts";
 import {
   fmtInt,
   fmtRoundId,
@@ -596,20 +595,6 @@ export function ProfilePage() {
                         <DiscordIcon size={15} />
                         Soon
                       </button>
-                    )}
-                  </Row>
-                  <Row label="Explorer">
-                    {wallet.address ? (
-                      <a
-                        href={addressUrl(wallet.address)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="tnum text-[14px] font-semibold text-fg-body transition-colors hover:text-accent"
-                      >
-                        View onchain
-                      </a>
-                    ) : (
-                      <span className="text-[14px] text-fg-muted">—</span>
                     )}
                   </Row>
                 </div>
