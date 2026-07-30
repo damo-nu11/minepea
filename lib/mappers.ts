@@ -159,9 +159,15 @@ export function toUserRoundVM(wire: UserRoundWire): UserRoundVM {
         ? "No winner"
         : wire.outcome === "lost"
           ? "Lost"
-          : wire.isSplit
-            ? "Won split"
-            : "Won",
+          : // A win whose on-chain checkpoint has not landed reports zeroed
+            // rewards. It is still a win and must say so — rendering it as
+            // a loss is the bug this project already shipped once on the
+            // rewards side (backend's own warning repeats it).
+            wire.rewardPending
+            ? "Won, pending"
+            : wire.isSplit
+              ? "Won split"
+              : "Won",
   };
 }
 

@@ -242,6 +242,11 @@ export interface UserRoundWire {
   wonPeaWei: string;
   peapotPeaWei: string;
   source: "manual" | "automine";
+  /** Live mode only: the wallet covered the drawn tile but the on-chain
+   * checkpoint has not landed, so the reward legs still read "0". Renders
+   * as "won, reward pending" — NEVER as a loss (the rewards side of this
+   * project already shipped that bug once). */
+  rewardPending?: boolean;
 }
 
 /** Lifetime aggregates folded from the COMPLETE round log (mock) or
@@ -271,7 +276,7 @@ export interface UserRoundVM extends UserRoundWire {
   /** Emission + peapot combined for display. */
   wonPea: number;
   wonPeaFormatted: string;
-  resultLabel: "Won" | "Won split" | "Lost" | "No winner";
+  resultLabel: "Won" | "Won split" | "Won, pending" | "Lost" | "No winner";
 }
 
 export interface UserTotalsVM {

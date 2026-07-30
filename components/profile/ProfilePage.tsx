@@ -6,12 +6,10 @@
  * profile" button (itself env-gated while this is being built) or the
  * URL — no nav entries anywhere (user decision 4).
  *
- * Layout: the site's WideContainer, then the PnL cards spanning the page
- * (four cards inside a sidebar column read as an unscannable scoreboard),
- * then two columns ≥lg in the user's chosen shape — LEFT identity +
- * trophies + portfolio + staking, RIGHT round history. Identity editing
- * goes through the SAME useProfileEditor hook as the drawer: one seam,
- * zero drift.
+ * Layout: the site's WideContainer, then two columns ≥lg in the user's
+ * chosen shape — LEFT identity + trophies + portfolio + staking, RIGHT
+ * round history. Identity editing goes through the SAME useProfileEditor
+ * hook as the drawer: one seam, zero drift.
  *
  * States are designed, not accidental: every not-connected state (incl.
  * initializing) renders the connect prompt, because a provider that never
@@ -25,7 +23,6 @@ import { ConnectButton } from "@/components/ConnectButton";
 import {
   ChartCard,
   Pager,
-  StatCard,
   TableScroller,
   TD,
   TH,
@@ -51,10 +48,10 @@ import {
   fmtRoundId,
   fmtToken,
   fmtUsd,
-  fmtUsdCard,
   shortAddr,
 } from "@/lib/format";
-import { usePrices, useUserRounds } from "@/lib/hooks/useGame";
+import { usePrices } from "@/lib/hooks/useGame";
+import { useUserHistory } from "@/lib/hooks/useUserHistory";
 import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
 import type { UserRoundVM, UserTotalsVM } from "@/lib/types";
@@ -66,86 +63,12 @@ function stamp(atMs: number): string {
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
-/** Signed USD for PnL cards: exact cents to $100k, compact above. */
-function usdSigned(v: number): string {
-  const abs = Math.abs(v);
-  const s = abs < 100_000 ? fmtUsd(abs) : fmtUsdCard(abs);
-  return v < 0 ? `-${s}` : `+${s}`;
-}
-
-/** The four PnL cards (decision 1: USD-first, exact ETH in the caption;
- * decision 2: gains lime, losses coral). Unknowns dash, never zero. */
-function PnlCards({
-  totals,
-  ethUsd,
-}: {
-  totals: UserTotalsVM | null;
-  ethUsd: number;
-}) {
-  const none = "No rounds yet";
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="NET PNL"
-          value={
-            totals
-              ? ethUsd > 0
-                ? usdSigned(totals.netEth * ethUsd)
-                : `${totals.netEthFormatted} ETH`
-              : "—"
-          }
-          caption={totals ? `${totals.netEthFormatted} ETH` : none}
-          tone={
-            totals && totals.netEth !== 0
-              ? totals.netEth > 0
-                ? "up"
-                : "down"
-              : undefined
-          }
-        />
-        <StatCard
-          title="DEPLOYED"
-          value={
-            totals
-              ? ethUsd > 0
-                ? fmtUsdCard(totals.totalDeployedEth * ethUsd)
-                : `${totals.totalDeployedFormatted} ETH`
-              : "—"
-          }
-          caption={totals ? `${totals.totalDeployedFormatted} ETH` : none}
-        />
-        <StatCard
-          title="PEA WON"
-          value={totals ? totals.totalWonPeaFormatted : "—"}
-          caption={
-            totals
-              ? totals.peapotHits > 0
-                ? `${fmtInt(totals.peapotHits)} peapot ${
-                    totals.peapotHits === 1 ? "hit" : "hits"
-                  } included`
-                : "Emission rewards"
-              : none
-          }
-        />
-        <StatCard
-          title="WIN RATE"
-          value={totals ? totals.winRateFormatted : "—"}
-          caption={
-            totals
-              ? `${fmtInt(totals.roundsWon)} of ${fmtInt(totals.roundsPlayed)} rounds`
-              : none
-          }
-        />
-      </div>
-      {totals && (
-        <p className="text-right text-[11.5px] text-fg-muted">
-          Settled rounds only. Through round {fmtRoundId(totals.asOfRoundId)}.
-        </p>
-      )}
-    </div>
-  );
-}
+// The PnL cards (net, deployed, PEA won, win rate) are DELIBERATELY not
+// in v1 (user 2026-07-30): they ship as their own release alongside the
+// shareable PnL cards, so the profile lands first and the money surface
+// gets its own announcement. Everything they need already exists —
+// useUserRounds returns the folded totals, StatCard carries the up/down
+// tone prop — so re-adding them is a render, not a rebuild.
 
 function Trophies({ totals }: { totals: UserTotalsVM }) {
   return (
@@ -399,7 +322,9 @@ export function ProfilePage() {
   const prices = usePrices();
   const stakingPos = useStakingPosition();
   const rewards = useRewards();
-  const history = useUserRounds();
+  // Mock mode folds the engine's slice; live mode fetches the backend's
+  // history endpoint. Same VM either way, so nothing below knows.
+  const history = useUserHistory(wallet.address);
 
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -460,10 +385,6 @@ export function ProfilePage() {
 
       {wallet.status === "connected" && (
         <div className="mt-10 flex flex-col gap-8 pb-8">
-          {/* The money headline spans the page: four cards crushed into a
-              sidebar column read as a scoreboard nobody can scan. */}
-          <PnlCards totals={history.data?.totals ?? null} ethUsd={ethUsd} />
-
           <div className="grid gap-8 lg:grid-cols-[420px_1fr] lg:items-start">
             {/* LEFT: identity + trophies + portfolio + staking */}
             <div className="flex flex-col gap-6">

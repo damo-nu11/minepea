@@ -20,7 +20,10 @@ import type {
   DeployEventWire,
   RoundSummaryWire,
   RoundWire,
+  TileId,
   TileWire,
+  UserRoundWire,
+  UserTotalsWire,
 } from "@/lib/types";
 
 // ─── Backend response shapes (captured 2026-07-16, backend/API.md) ──────────
@@ -291,4 +294,140 @@ export function toPeaUsd(body: PriceResponse): number {
   if (!body.pea) return 0;
   const price = Number(body.pea.priceUsd);
   return Number.isFinite(price) && price > 0 ? price : 0;
+}
+
+// ─── Per-user history (GET /api/user/:address/history?type=deploy) ──────────
+
+export interface BackendRoundResult {
+  settled: boolean;
+  /** null while unsettled. */
+  outcome: "won" | "lost" | "no_winner" | null;
+  isSplit: boolean;
+  /** The wallet covered the drawn tile — true even before the on-chain
+   * checkpoint lands, which is why rewards can still read "0" here. */
+  wonWinningBlock: boolean;
+  peapotHit: boolean;
+  winningBlock: number;
+  settledAt: string;
+  ethWon: string;
+  /** Combined leg, kept for older callers; we read the two below. */
+  peaWon: string;
+  /** Round emission share, GROSS (the 10% harvest fee is charged at claim). */
+  peaWonMining: string;
+  /** Jackpot share, "0" when none fired. Independent of the mining leg. */
+  peaWonPeapot: string;
+  pnl: string;
+}
+
+export interface BackendHistoryEntry {
+  roundId: number;
+  user: string;
+  amountPerBlock: string;
+  /** Decimal STRING bitmask of the 25 tiles — decoded here. */
+  blockMask: string;
+  totalAmount: string;
+  txHash: string;
+  isAutoMine: boolean;
+  /** ISO. */
+  timestamp: string;
+  roundResult?: BackendRoundResult | null;
+}
+
+export interface BackendHistoryTotals {
+  totalETHWon: string;
+  totalPEAWon: string;
+  totalETHDeployed: string;
+  totalPNL: string;
+  peaPriceEth: number | null;
+  roundsPlayed: number;
+  roundsWon: number;
+  peapotHits: number;
+  bestWinStreak: number;
+  currentWinStreak: number;
+  /** netEthWei is SIGNED: a wallet that never profited still reports its
+   * least-bad round. */
+  bestRound: { roundId: number; netEthWei: string } | null;
+  firstPlayedAt: string | null;
+  asOfRoundId: number;
+}
+
+export interface UserHistoryResponse {
+  history: BackendHistoryEntry[];
+  /** null for a wallet that has never mined (NOT a row of zeros). */
+  totals: BackendHistoryTotals | null;
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/** Decimal bitmask string → ascending tile ids. */
+export function tilesFromMask(mask: string): TileId[] {
+  let m: bigint;
+  try {
+    m = BigInt(mask);
+  } catch {
+    return [];
+  }
+  const tiles: TileId[] = [];
+  for (let i = 0; i < 25; i++) if ((m >> BigInt(i)) & 1n) tiles.push(i);
+  return tiles;
+}
+
+/**
+ * One settled history row → our wire shape.
+ *
+ * Returns null for a row whose round has not settled: the profile shows
+ * settled rounds only, and an in-flight deploy has no outcome to report.
+ *
+ * THE CHECKPOINT RULE (backend's own warning, and the shape of a bug this
+ * project already shipped once on the rewards side): rewards populate only
+ * after the on-chain checkpoint, so a genuine win can arrive as
+ * `wonWinningBlock: true` with ethWon and peaWon both "0". That is "won,
+ * reward pending" — never a loss. The outcome enum is preserved as sent and
+ * `rewardPending` carries the distinction to the UI.
+ */
+export function toUserRoundWire(
+  e: BackendHistoryEntry,
+): UserRoundWire | null {
+  const r = e.roundResult;
+  if (!r || !r.settled || r.outcome === null) return null;
+  const ethWon = r.ethWon ?? "0";
+  const peaMining = r.peaWonMining ?? "0";
+  const peaPeapot = r.peaWonPeapot ?? "0";
+  return {
+    roundId: e.roundId,
+    settledAt: Date.parse(r.settledAt),
+    outcome: r.outcome,
+    isSplit: r.isSplit === true,
+    peapotHit: r.peapotHit === true,
+    winningTile: r.winningBlock,
+    tiles: tilesFromMask(e.blockMask),
+    deployedWei: e.totalAmount,
+    wonEthWei: ethWon,
+    wonPeaWei: peaMining,
+    peapotPeaWei: peaPeapot,
+    source: e.isAutoMine ? "automine" : "manual",
+    rewardPending:
+      r.wonWinningBlock === true &&
+      ethWon === "0" &&
+      peaMining === "0" &&
+      peaPeapot === "0",
+  };
+}
+
+/** Backend lifetime aggregates → our wire shape. */
+export function toUserTotalsWire(
+  t: BackendHistoryTotals,
+): UserTotalsWire {
+  return {
+    roundsPlayed: t.roundsPlayed,
+    roundsWon: t.roundsWon,
+    peapotHits: t.peapotHits,
+    totalDeployedWei: t.totalETHDeployed,
+    totalWonEthWei: t.totalETHWon,
+    totalWonPeaWei: t.totalPEAWon,
+    bestRound: t.bestRound,
+    bestWinStreak: t.bestWinStreak,
+    currentWinStreak: t.currentWinStreak,
+    firstPlayedAt: t.firstPlayedAt ? Date.parse(t.firstPlayedAt) : 0,
+    asOfRoundId: t.asOfRoundId,
+  };
 }
