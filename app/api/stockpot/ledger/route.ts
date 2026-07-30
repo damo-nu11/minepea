@@ -33,9 +33,24 @@ const CANDLES = "https://api.geckoterminal.com/api/v2/networks/robinhood/pools";
  * WETH legs the assembler ignores.
  */
 const MAX_PAGES = 40;
-/** Per-upstream-request timeout: a hung socket must not ride the function
- * into the platform kill. */
-const UPSTREAM_TIMEOUT_MS = 4_000;
+/**
+ * Per-upstream-request timeout: a hung socket must not ride the function
+ * into the platform kill. Raised 4s → 12s on 2026-07-30: the explorer's
+ * cold page latency drifted to ~7s, so a 4s cap aborted the FIRST page and
+ * the whole route failed closed with a 502 while both upstreams were
+ * healthy (found live on prod). Sized off measured latency with headroom,
+ * and bounded overall by WALK_BUDGET_MS below rather than by this alone.
+ */
+const UPSTREAM_TIMEOUT_MS = 12_000;
+/**
+ * Wall-clock budget for the sequential explorer walk. Pagination is keyset,
+ * so pages cannot be fetched in parallel; at the explorer's current pace a
+ * deep history would otherwise run past maxDuration and be killed with
+ * nothing to show. When the budget runs out we stop and return what we
+ * have as `truncated`, which the UI already tells the truth about ("within
+ * the ledger window", never "lifetime"). A labelled partial beats a 502.
+ */
+const WALK_BUDGET_MS = 38_000;
 /** Warm-instance stale-if-error: serving a recent ledger briefly beats an
  * uncacheable 502 that turns every cold tab into a 15s retry hammer
  * against a rate-limited upstream (audit 2026-07-28). */
@@ -47,8 +62,12 @@ async function fetchTransfers(): Promise<{
   truncated: boolean;
 }> {
   const items: ExplorerTransferItem[] = [];
+  const deadline = Date.now() + WALK_BUDGET_MS;
   let params = "";
   for (let page = 0; page < MAX_PAGES; page++) {
+    // Pages come newest-first, so stopping early loses the OLDEST history —
+    // the same shape of loss as the page cap, reported the same way.
+    if (page > 0 && Date.now() > deadline) return { items, truncated: true };
     const res = await fetch(
       `${EXPLORER}/addresses/${STOCKPOT_PERIPHERY.pot}/token-transfers?type=ERC-20${params}`,
       {
