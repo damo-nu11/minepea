@@ -81,11 +81,7 @@ function Trophies({ totals }: { totals: UserTotalsVM }) {
         <Row label="Best round">
           {totals.bestRound && totals.bestRound.netEth > 0 ? (
             <span className="flex items-baseline gap-2">
-              <span
-                className={`tnum text-[15px] font-semibold ${
-                  totals.bestRound.netEth > 0 ? "text-accent" : "text-fg"
-                }`}
-              >
+              <span className="tnum text-[15px] font-semibold text-accent">
                 {totals.bestRound.netEthFormatted} ETH
               </span>
               <span className="tnum text-[12.5px] text-fg-muted">
@@ -153,20 +149,43 @@ function HistoryCard({
     <ChartCard
       title="Round history"
       headingAs="h2"
-      subtitle="Every settled round you mined, newest first."
+      subtitle="Every settled round you mined, newest first. Net counts PEA won, valued at the current price."
       actions={
         rounds.length > 0 ? (
+          // A real switch, not a ghost pill: the filled pill read as a
+          // static label rather than something you could press (user
+          // 2026-07-31). role="switch" carries the on/off state to
+          // assistive tech the way aria-pressed on a button does not.
           <button
             type="button"
-            aria-pressed={winnersOnly}
+            role="switch"
+            aria-checked={winnersOnly}
             onClick={toggleWinners}
-            className={`focus-ring cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
-              winnersOnly
-                ? "bg-accent/[0.12] text-accent"
-                : "bg-white/[0.03] text-fg-muted hover:text-fg"
-            }`}
+            className="focus-ring group flex cursor-pointer items-center gap-2.5 rounded-full py-1"
           >
-            Winners only
+            <span
+              className={`text-[12px] font-semibold transition-colors ${
+                winnersOnly ? "text-fg" : "text-fg-muted group-hover:text-fg"
+              }`}
+            >
+              Winners only
+            </span>
+            <span
+              aria-hidden
+              className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+                winnersOnly
+                  ? "bg-accent"
+                  : "bg-line-slate group-hover:bg-line-slate/70"
+              }`}
+            >
+              <span
+                className={`absolute top-[3px] size-3 rounded-full transition-transform motion-reduce:transition-none ${
+                  winnersOnly
+                    ? "translate-x-[17px] bg-on-light"
+                    : "translate-x-[3px] bg-fg-muted"
+                }`}
+              />
+            </span>
           </button>
         ) : undefined
       }
@@ -267,17 +286,18 @@ function ProfileHistoryRow({
         <td className={`${TD} pl-6 text-[14px]`}>
           <ResultCell r={r} />
         </td>
-        {/* A win whose checkpoint has not landed reports zeroed rewards,
-            so its net would read as a full loss in coral under a lime
-            "Won, pending" label. Dash both money cells until the chain
-            says what was actually paid. */}
+        {/* Net counts the PEA emission, which is most of what a win pays:
+            an ETH-only net reports a profitable round as a loss (a round
+            paying 1 PEA on 0.05 ETH is well up, and read -15% before).
+            A win whose checkpoint has not landed reports zeroed rewards,
+            so dash both money cells until the chain says what was paid. */}
         <td
           className={`${TD} tnum text-right ${
-            r.rewardPending
+            r.rewardPending || r.netTotalEth === null
               ? "text-fg-muted"
-              : r.netEth > 0
+              : r.netTotalEth > 0
                 ? "text-accent"
-                : r.netEth < 0
+                : r.netTotalEth < 0
                   ? "text-danger"
                   : "text-fg-muted"
           }`}
@@ -286,10 +306,10 @@ function ProfileHistoryRow({
             "—"
           ) : (
             <span className="flex flex-col items-end leading-tight">
-              <span>{r.netEthFormatted}</span>
-              {r.netPct !== null && r.netPct > -100 && (
+              <span>{r.netTotalEthFormatted}</span>
+              {r.netTotalPct !== null && r.netTotalPct > -100 && (
                 <span className="text-[12px] font-normal text-fg-muted">
-                  {r.netPctFormatted}
+                  {r.netTotalPctFormatted}
                 </span>
               )}
             </span>
@@ -360,8 +380,28 @@ function ProfileHistoryRow({
                     {r.wonPea > 0 ? ` · ${r.wonPeaFormatted} PEA` : ""}
                   </dd>
                 </div>
+                {/* The Net column is one number made of two legs. Show the
+                    working, so a green net on a round that returned less
+                    ETH than it cost is self-explaining rather than
+                    suspicious. */}
+                {r.wonPea > 0 && (
+                  <div className="flex items-center gap-4">
+                    <dt className="micro-label">PEA value</dt>
+                    <dd className="tnum text-[13px] text-fg-body">
+                      {r.peaValueFormatted} ETH
+                    </dd>
+                  </div>
+                )}
               </dl>
             </div>
+            {r.rewardPending && (
+              <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-fg-muted">
+                You covered the drawn tile, so this round paid out. Its exact
+                figures are written when the round is checkpointed on chain,
+                which happens the next time you mine or claim. The reward is
+                already counted in your claimable balance.
+              </p>
+            )}
           </td>
         </tr>
       )}

@@ -338,7 +338,8 @@ export interface BackendHistoryTotals {
   totalPEAWon: string;
   totalETHDeployed: string;
   totalPNL: string;
-  peaPriceEth: number | null;
+  /** Typed a number, served as a decimal string ("0.0258"). */
+  peaPriceEth: number | string | null;
   roundsPlayed: number;
   roundsWon: number;
   peapotHits: number;
@@ -356,6 +357,12 @@ export interface UserHistoryResponse {
   /** null for a wallet that has never mined (NOT a row of zeros). */
   totals: BackendHistoryTotals | null;
   pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/** The backend types peaPriceEth as a number but serves "0.0258". */
+export function peaPriceEth(v: number | string | null | undefined): number | null {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** Decimal bitmask string → ascending tile ids. */
@@ -435,6 +442,10 @@ export function toUserTotalsWire(
     totalDeployedWei: wei(t.totalETHDeployed),
     totalWonEthWei: wei(t.totalETHWon),
     totalWonPeaWei: wei(t.totalPEAWon),
+    // Sent as a decimal STRING ("0.0258") despite the field's name, so it
+    // goes through Number() rather than being trusted as one. A zero or a
+    // non-number is "no price", never a free valuation of the emission.
+    peaPriceEth: peaPriceEth(t.peaPriceEth),
     bestRound: t.bestRound,
     bestWinStreak: t.bestWinStreak,
     currentWinStreak: t.currentWinStreak,

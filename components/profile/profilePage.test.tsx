@@ -103,7 +103,9 @@ function fixtureStore(
   const snapshot: EngineSnapshot = {
     ...SERVER_SNAPSHOT,
     bootstrapped: true,
-    prices: { peaUsd: 12, ethUsd: 3800 },
+    // 38 / 3800 puts PEA at exactly 0.01 ETH, so the PEA-inclusive money
+    // figures below are checkable by eye.
+    prices: { peaUsd: 38, ethUsd: 3800 },
     userRounds,
   };
   return {
@@ -274,18 +276,57 @@ describe("ProfilePage P1 (PnL + history)", () => {
     expect(screen.queryByText("+$380.00")).not.toBeInTheDocument();
   });
 
-  it("renders trophies from the same totals fold", () => {
+  it("renders trophies from the same totals fold, PEA counted", () => {
     wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
     expect(screen.getByText("Best round")).toBeInTheDocument();
-    // Round 50 netted +0.3 ETH (0.4 won on 0.1 deployed).
-    expect(screen.getByText("+0.3 ETH")).toBeInTheDocument();
+    // Round 50: 0.4 won on 0.1 deployed = +0.3 ETH, PLUS its 1 PEA
+    // emission at 0.01 ETH. The trophy must agree with the table's Net
+    // column, which counts the same emission.
+    expect(screen.getByText("+0.31 ETH")).toBeInTheDocument();
+  });
+
+  it("the Net column counts PEA, so a round can be up on a down ETH leg", () => {
+    // 0.12 back on 0.1 deployed is +0.02 ETH; the 1 PEA emission at 0.01
+    // takes it to +0.03, which is +30% of the stake, not the +20% an
+    // ETH-only column reported.
+    wrap(
+      <ProfilePage />,
+      walletCtx(A),
+      fixtureStore([userRound(51, "won", 0.1, 0.12)]),
+    );
+    const net = screen.getByText("+0.03");
+    expect(net).toBeInTheDocument();
+    expect(screen.getByText("+30.00%")).toBeInTheDocument();
+    expect(screen.queryByText("+20.00%")).not.toBeInTheDocument();
+    // Green, because the round made money.
+    expect(net.closest("td")).toHaveClass("text-accent");
+  });
+
+  it("a break-even round is flat and muted, never a coral minus zero", () => {
+    // 0.09 back on 0.1 plus 1 PEA at 0.01 is EXACTLY flat, but in floating
+    // point it lands on -8.7e-18: not === 0, so it took the negative
+    // branch and painted "-0" / "-0.00%" in the loss colour.
+    wrap(
+      <ProfilePage />,
+      walletCtx(A),
+      fixtureStore([userRound(51, "won", 0.1, 0.09)]),
+    );
+    const net = screen.getByText("0", { selector: "td span span" });
+    expect(net).toBeInTheDocument();
+    expect(screen.queryByText("-0")).not.toBeInTheDocument();
+    expect(screen.queryByText("-0.00%")).not.toBeInTheDocument();
+    expect(net.closest("td")).not.toHaveClass("text-danger");
   });
 
   it("renders the history rows and filters to winners only", () => {
     wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
     expect(screen.getByText("Won")).toBeInTheDocument();
     expect(screen.getByText("Lost")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Winners only" }));
+    // A switch, not a button: the state is carried by aria-checked.
+    const filter = screen.getByRole("switch", { name: "Winners only" });
+    expect(filter).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(filter);
+    expect(filter).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText("Won")).toBeInTheDocument();
     expect(screen.queryByText("Lost")).not.toBeInTheDocument();
   });

@@ -35,11 +35,16 @@
 import { useEffect, useState } from "react";
 import {
   type UserHistoryResponse,
+  peaPriceEth,
   toUserRoundWire,
   toUserTotalsWire,
 } from "@/lib/api/translate";
 import { useRound, useUserRounds } from "@/lib/hooks/useGame";
-import { toUserRoundVM, toUserTotalsVM } from "@/lib/mappers";
+import {
+  bestRoundFromRows,
+  toUserRoundVM,
+  toUserTotalsVM,
+} from "@/lib/mappers";
 import { report } from "@/lib/report";
 import type { Address, HookResult, UserHistoryVM } from "@/lib/types";
 
@@ -77,18 +82,32 @@ export async function fetchUserHistory(
   });
   if (!res.ok) throw new Error(`history ${res.status}`);
   const body = (await res.json()) as UserHistoryResponse;
+  // PEA is most of what a win pays, so every return figure needs it priced.
+  // The backend quotes it alongside the aggregates it uses it for.
+  const price = peaPriceEth(body.totals?.peaPriceEth);
   // Unsettled rows translate to null and drop out: the profile shows
   // settled rounds only (the live round is deliberately absent).
   const rounds = (body.history ?? [])
     .map(toUserRoundWire)
     .filter((r) => r !== null)
-    .map(toUserRoundVM)
+    .map((w) => toUserRoundVM(w, price))
     // The caption promises newest first; enforce it rather than trusting
     // the backend's page order to stay what it is today.
     .sort((a, b) => b.roundId - a.roundId);
+  const totals = body.totals
+    ? toUserTotalsVM(toUserTotalsWire(body.totals))
+    : null;
+  // The backend's bestRound is ETH-only, which reports a round carried by
+  // its PEA emission as a loss. Re-fold it from the rows — but ONLY when
+  // this response holds the wallet's whole history, since a max over one
+  // page of many is just the best round we happened to fetch.
+  const complete = (body.pagination?.pages ?? 1) <= 1;
   return {
     rounds,
-    totals: body.totals ? toUserTotalsVM(toUserTotalsWire(body.totals)) : null,
+    totals:
+      totals && complete
+        ? { ...totals, bestRound: bestRoundFromRows(rounds) }
+        : totals,
   };
 }
 

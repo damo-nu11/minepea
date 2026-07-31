@@ -260,6 +260,14 @@ export interface UserTotalsWire {
   totalDeployedWei: string;
   totalWonEthWei: string;
   totalWonPeaWei: string;
+  /** PEA priced in ETH, as the backend values it when computing PnL. null
+   * when unavailable, which dashes every PEA-inclusive figure rather than
+   * silently valuing the emission at nothing. */
+  peaPriceEth: number | null;
+  /** SIGNED, and ETH-ONLY as the backend computes it — a wallet whose best
+   * round was carried by its PEA emission reports a negative figure here.
+   * The page prefers a PEA-inclusive best folded from the rows when it
+   * holds the complete history. */
   bestRound: { roundId: number; netEthWei: string } | null;
   bestWinStreak: number;
   currentWinStreak: number;
@@ -272,16 +280,27 @@ export interface UserRoundVM extends UserRoundWire {
   deployedFormatted: string;
   wonEth: number;
   wonEthFormatted: string;
-  /** wonEth − deployed (signed). */
+  /** The ETH leg alone: wonEth − deployed (signed). Kept for the expanded
+   * row's breakdown; the headline figure is netTotalEth. */
   netEth: number;
   netEthFormatted: string;
-  /** Net as a return on the round's own stake; null when nothing was
-   * deployed (never a divide-by-zero zero). */
-  netPct: number | null;
-  netPctFormatted: string;
   /** Emission + peapot combined for display. */
   wonPea: number;
   wonPeaFormatted: string;
+  /** wonPea valued in ETH. 0 when no PEA was won (exact, no price needed);
+   * null when PEA was won but no price is available. */
+  peaValueEth: number | null;
+  peaValueFormatted: string;
+  /** THE round's actual return: wonEth + peaValueEth − deployed. PEA is
+   * most of what a win pays, so an ETH-only net reports a profitable round
+   * as a loss — this is the backend's own `pnl` figure, recomputed here so
+   * mock and live agree. Null when the PEA leg cannot be valued. */
+  netTotalEth: number | null;
+  netTotalEthFormatted: string;
+  /** netTotalEth as a return on the round's own stake; null when nothing
+   * was deployed (never a divide-by-zero zero) or PEA is unpriced. */
+  netTotalPct: number | null;
+  netTotalPctFormatted: string;
   resultLabel:
     | "Won"
     | "Won split"
@@ -300,7 +319,9 @@ export interface UserTotalsVM {
   winRateFormatted: string;
   totalDeployedEth: number;
   totalDeployedFormatted: string;
-  netEth: number;
+  /** Lifetime return WITH the PEA emission valued in ETH; null when PEA
+   * was won and no price is available. */
+  netEth: number | null;
   netEthFormatted: string;
   totalWonPea: number;
   totalWonPeaFormatted: string;

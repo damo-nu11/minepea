@@ -17,7 +17,7 @@ import {
   toUserRoundWire,
   toUserTotalsWire,
 } from "@/lib/api/translate";
-import { toUserRoundVM } from "@/lib/mappers";
+import { toUserRoundVM, toUserTotalsVM } from "@/lib/mappers";
 import { fetchUserHistory } from "@/lib/hooks/useUserHistory";
 
 function entry(over: Partial<BackendHistoryEntry> = {}): BackendHistoryEntry {
@@ -91,7 +91,7 @@ describe("toUserRoundWire", () => {
     )!;
     expect(w.outcome).toBe("won");
     expect(w.rewardPending).toBe(true);
-    expect(toUserRoundVM(w).resultLabel).toBe("Won, pending");
+    expect(toUserRoundVM(w, 0.02).resultLabel).toBe("Won, pending");
   });
 
   it("keeps the emission and peapot legs independent", () => {
@@ -114,7 +114,7 @@ describe("toUserRoundWire", () => {
     expect(w.peapotPeaWei).toBe("4000000000000000000");
     expect(w.peapotHit).toBe(true);
     // Display folds them back to 5, and must not reach 9 by double-count.
-    expect(toUserRoundVM(w).wonPea).toBeCloseTo(5, 9);
+    expect(toUserRoundVM(w, 0.02).wonPea).toBeCloseTo(5, 9);
   });
 
   it("a wallet can win ETH with zero mining PEA (non-split emission)", () => {
@@ -136,7 +136,7 @@ describe("toUserRoundWire", () => {
     expect(w.wonPeaWei).toBe("0");
     // Rewards are not all zero, so this is not a pending checkpoint.
     expect(w.rewardPending).toBe(false);
-    expect(toUserRoundVM(w).resultLabel).toBe("Won");
+    expect(toUserRoundVM(w, 0.02).resultLabel).toBe("Won");
   });
 
   it("drops unsettled rows and marks automine", () => {
@@ -167,7 +167,7 @@ describe("toUserRoundWire", () => {
     )!;
     expect(w.outcome).toBe("no_winner");
     expect(w.rewardPending).toBe(false);
-    expect(toUserRoundVM(w).resultLabel).toBe("No winner");
+    expect(toUserRoundVM(w, 0.02).resultLabel).toBe("No winner");
   });
 });
 
@@ -200,6 +200,51 @@ describe("toUserTotalsWire", () => {
       netEthWei: "-62500000000000",
     });
     expect(t.firstPlayedAt).toBe(Date.parse("2026-07-14T19:34:29.000Z"));
+  });
+
+  it("parses peaPriceEth, which is typed a number and served a string", () => {
+    // Live payload, verified 2026-07-31: "0.0258". Trusting the declared
+    // type and using it raw would multiply the emission by a string.
+    expect(
+      toUserTotalsWire({ ...totals, peaPriceEth: "0.0258" }).peaPriceEth,
+    ).toBe(0.0258);
+    expect(toUserTotalsWire({ ...totals, peaPriceEth: 0.03 }).peaPriceEth).toBe(
+      0.03,
+    );
+    // No price is null, never a free valuation of the emission at zero.
+    for (const bad of [null, "0", "", "abc", -1]) {
+      expect(
+        toUserTotalsWire({ ...totals, peaPriceEth: bad as never }).peaPriceEth,
+      ).toBeNull();
+    }
+  });
+
+  it("reproduces the backend's own PnL once PEA is priced", () => {
+    // Anchored on the live wallet 0x5046…4488 (2026-07-31): 0.00044748 ETH
+    // won and 0 PEA on 0.000625 deployed, backend totalPNL -0.00017752.
+    const t = toUserTotalsVM(
+      toUserTotalsWire({
+        ...totals,
+        totalETHWon: "447480000000000",
+        totalPEAWon: "0",
+        totalETHDeployed: "625000000000000",
+        peaPriceEth: "0.0258",
+      }),
+    );
+    expect(t.netEth).toBeCloseTo(-0.00017752, 12);
+    // And the full-cover bot the same day: 22.583726501404541179 ETH won,
+    // 114.746431644989376694 PEA, 25.2866653372327682 deployed, PnL
+    // 0.25751910 — a figure only reachable WITH the emission counted.
+    const bot = toUserTotalsVM(
+      toUserTotalsWire({
+        ...totals,
+        totalETHWon: "22583726501404541179",
+        totalPEAWon: "114746431644989376694",
+        totalETHDeployed: "25286665337232768200",
+        peaPriceEth: "0.0258",
+      }),
+    );
+    expect(bot.netEth).toBeCloseTo(0.2575191, 6);
   });
 });
 

@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useEngineStore } from "@/lib/engineContext";
 import { liveEthPrice, livePeaPrice } from "@/lib/livePrices";
 import {
+  bestRoundFromRows,
   deriveUserTotals,
   toFeedItemVM,
   toPricesVM,
@@ -89,14 +90,30 @@ export function useRoundHistory(): HookResult<RoundSummaryVM[]> {
  * take both from the backend instead — never fold a paginated window. */
 export function useUserRounds(): HookResult<UserHistoryVM> {
   const snap = useSnapshot();
+  const { peaUsd, ethUsd } = snap.prices;
   const data = useMemo(() => {
     if (!snap.bootstrapped) return undefined;
-    const totals = deriveUserTotals(snap.userRounds);
+    // Live mode reads the backend's own peaPriceEth; the sim has to derive
+    // it from the two quotes. Both zero in the server snapshot, which is
+    // "no price" — the PEA-inclusive figures dash rather than valuing the
+    // emission at nothing.
+    const price = ethUsd > 0 && peaUsd > 0 ? peaUsd / ethUsd : null;
+    const totals = deriveUserTotals(snap.userRounds, price);
+    // An explicit arrow, NOT a bare `.map(toUserRoundVM)`: map passes the
+    // index as the second argument, which would price PEA at the row
+    // number.
+    const rounds = snap.userRounds.map((r) => toUserRoundVM(r, price));
     return {
-      rounds: snap.userRounds.map(toUserRoundVM),
-      totals: totals ? toUserTotalsVM(totals) : null,
+      rounds,
+      // Same re-fold live mode does, for the same reason and so the two
+      // modes cannot disagree: the wire's bestRound is an ETH-only figure,
+      // and the round a wallet remembers is the one that paid the most
+      // overall. The mock slice is complete by construction.
+      totals: totals
+        ? { ...toUserTotalsVM(totals), bestRound: bestRoundFromRows(rounds) }
+        : null,
     };
-  }, [snap.bootstrapped, snap.userRounds]);
+  }, [snap.bootstrapped, snap.userRounds, peaUsd, ethUsd]);
   return { data, status: hookStatus(snap) };
 }
 
