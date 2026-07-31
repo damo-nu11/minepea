@@ -348,8 +348,7 @@ export function AvatarCropper({
           </p>
         ) : (
           <>
-            {/* The frame. Everything outside the circle is dimmed so the
-                crop is unambiguous before it is committed. */}
+            {/* The frame. What sits inside it is the avatar. */}
             <div
               role="group"
               aria-label="Drag to reposition, arrow keys to nudge"
@@ -407,7 +406,7 @@ export function AvatarCropper({
                 onChange={(e) => applyZoom(Number(e.target.value))}
                 aria-label="Zoom"
                 aria-valuetext={`${zoom.toFixed(1)} times`}
-                className="focus-ring w-full cursor-pointer accent-accent"
+                className="focus-ring range-brand w-full cursor-pointer"
               />
             </label>
 

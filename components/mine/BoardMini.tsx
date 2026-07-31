@@ -52,24 +52,25 @@ export function BoardMini({
                 win
                   ? "var(--color-fg)"
                   : on
-                    ? "rgba(204,255,0,0.10)"
+                    ? "color-mix(in srgb, var(--color-accent) 10%, transparent)"
                     : "transparent"
               }
               stroke={
                 win
                   ? "var(--color-fg)"
                   : on
-                    ? "rgba(204,255,0,0.6)"
-                    : "rgba(46,58,0,0.6)"
+                    ? "color-mix(in srgb, var(--color-accent) 60%, transparent)"
+                    : "color-mix(in srgb, var(--color-line-slate) 60%, transparent)"
               }
-              strokeWidth="3"
+              strokeWidth="1.6"
+              vectorEffect="non-scaling-stroke"
             />
             <text
               x={tx}
               y={ty + 11}
               textAnchor="middle"
               transform={`rotate(${(-TILE_ROT[b]).toFixed(2)} ${tx} ${ty})`}
-              fontSize="30"
+              fontSize="42"
               fontWeight={600}
               fill={
                 win

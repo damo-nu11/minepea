@@ -281,3 +281,36 @@ body {
   background: var(--color-accent);
   color: var(--color-on-light);
 }
+
+/* Branded range input. A native range on a pure-black panel renders the
+   platform track and thumb, which is the brightest, most off-brand thing
+   on the surface — the same rule the scrollbar utilities exist for. The
+   pseudo-elements cannot live in a Tailwind @utility. */
+.range-brand {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-line-slate);
+}
+.range-brand::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.range-brand::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-bg);
+}
+.range-brand::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-line-slate);
+}

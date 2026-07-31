@@ -79,7 +79,7 @@ function Trophies({ totals }: { totals: UserTotalsVM }) {
     <ChartCard title="Trophies" headingAs="h2">
       <div className="flex flex-col">
         <Row label="Best round">
-          {totals.bestRound ? (
+          {totals.bestRound && totals.bestRound.netEth > 0 ? (
             <span className="flex items-baseline gap-2">
               <span
                 className={`tnum text-[15px] font-semibold ${
@@ -175,11 +175,11 @@ function HistoryCard({
           told a wallet with hundreds of rounds it had never mined, and
           told it permanently when the fetch failed (audit 2026-07-30). */}
       {status === "loading" && rounds.length === 0 ? (
-        <div className="flex flex-col gap-2 px-1 py-4" aria-hidden>
-          {[0, 1, 2, 3, 4].map((i) => (
+        <div className="flex flex-col" aria-hidden>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
             <div
               key={i}
-              className="h-12 animate-pulse rounded-lg bg-surface"
+              className="h-16 animate-pulse border-b border-line-slate/50 bg-white/[0.05]"
             />
           ))}
         </div>
@@ -206,14 +206,13 @@ function HistoryCard({
       ) : (
         <>
           <TableScroller label="Round history table">
-            <table className="w-full min-w-[640px] border-collapse text-left">
+            <table className="w-full min-w-[560px] border-collapse text-left">
               <caption className="sr-only">
                 Your settled rounds with deployed, result, and rewards
               </caption>
               <thead>
                 <tr className="border-b border-line-slate">
                   <th className={TH}>Round</th>
-                  <th className={`${TH} text-right`}>Tiles</th>
                   <th className={`${TH} text-right`}>Deployed</th>
                   <th className={`${TH} pl-6`}>Result</th>
                   <th className={`${TH} text-right`}>Net</th>
@@ -264,7 +263,6 @@ function ProfileHistoryRow({
     <>
       <tr className="border-b border-line-slate/50">
         <td className={`${TD} tnum`}>{fmtRoundId(r.roundId)}</td>
-        <td className={`${TD} tnum text-right`}>{r.tiles.length}</td>
         <td className={`${TD} tnum text-right`}>{r.deployedFormatted}</td>
         <td className={`${TD} pl-6 text-[14px]`}>
           <ResultCell r={r} />
@@ -289,14 +287,22 @@ function ProfileHistoryRow({
           ) : (
             <span className="flex flex-col items-end leading-tight">
               <span>{r.netEthFormatted}</span>
-              <span className="text-[12px] font-normal text-fg-muted">
-                {r.netPctFormatted}
-              </span>
+              {r.netPct !== null && r.netPct > -100 && (
+                <span className="text-[12px] font-normal text-fg-muted">
+                  {r.netPctFormatted}
+                </span>
+              )}
             </span>
           )}
         </td>
         <td className={`${TD} tnum text-right`}>
-          {r.rewardPending ? "—" : r.wonPea > 0 ? r.wonPeaFormatted : "0"}
+          {r.rewardPending ? (
+            "—"
+          ) : r.wonPea > 0 ? (
+            r.wonPeaFormatted
+          ) : (
+            <span className="text-fg-muted">0</span>
+          )}
         </td>
         <td className={`${TD} text-right`}>
           <button
@@ -440,9 +446,11 @@ export function ProfilePage() {
             <PersonIcon size={28} className="text-fg-body" />
           </span>
           <p className="max-w-[360px] text-[14.5px] leading-relaxed text-fg-body">
-            Connect a wallet to see your profile, holdings, and round history.
+            {wallet.status === "initializing"
+              ? "Checking your wallet."
+              : "Connect a wallet to see your profile, holdings, and round history."}
           </p>
-          <ConnectButton />
+          {wallet.status !== "initializing" && <ConnectButton />}
         </div>
       )}
 
@@ -454,7 +462,7 @@ export function ProfilePage() {
           columns' tops misaligned (one had a border, one did not). */}
       {wallet.status === "connected" && (
         <div className="mt-10 pb-12">
-          <div className="grid gap-6 lg:grid-cols-[400px_1fr] lg:items-start">
+          <div className="grid gap-6 xl:grid-cols-[320px_1fr] xl:items-start">
             {/* LEFT: identity + trophies + portfolio + staking */}
             <div className="flex flex-col gap-6">
               <ChartCard>
@@ -663,9 +671,8 @@ export function ProfilePage() {
                 </div>
               </ChartCard>
 
-              <ChartCard title="Staking" headingAs="h2">
+              <ChartCard title="Staking yield" headingAs="h2">
                 <div className="flex flex-col">
-                  <PeaRow label="Staked" value={stakedFmt} />
                   <Row label="Pending yield">
                     <span className="tnum text-[15px] font-semibold text-fg">
                       <TickingYield

@@ -242,9 +242,18 @@ describe("ProfilePage P0", () => {
     expect(screen.getByText(/Connect a wallet/)).toBeInTheDocument();
   });
 
-  it("shows the connect prompt while initializing too (a wedged provider must not strand a skeleton)", () => {
+  it("says it is checking while initializing, never 'connect a wallet'", () => {
+    // /profile is server-rendered, so an already-connected user briefly
+    // gets this state on every load. Telling them to connect asserts the
+    // opposite of the truth and any paused frame reads as logged out.
     wrap(<ProfilePage />, walletCtx(null, "initializing"));
-    expect(screen.getByText(/Connect a wallet/)).toBeInTheDocument();
+    expect(screen.getByText(/Checking your wallet/)).toBeInTheDocument();
+    expect(screen.queryByText(/Connect a wallet/)).not.toBeInTheDocument();
+    // Still not a skeleton: a provider that never initializes must not
+    // strand the page on placeholder bars.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Profile." }),
+    ).toBeInTheDocument();
   });
 });
 
