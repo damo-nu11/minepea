@@ -15,7 +15,13 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ConnectButton } from "@/components/ConnectButton";
 import { ProfilePage } from "@/components/profile/ProfilePage";
@@ -298,20 +304,33 @@ describe("ProfilePage P1 (PnL + history)", () => {
 
   it("keeps the PnL cards out of v1 (they ship with the share cards)", () => {
     wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
-    // The totals fold still runs (trophies read it) but no headline
+    // The totals fold still runs (records read it) but no headline
     // scoreboard renders: net PnL, deployed and win rate stay unshipped.
     expect(screen.queryByText("NET PNL")).not.toBeInTheDocument();
     expect(screen.queryByText("WIN RATE")).not.toBeInTheDocument();
     expect(screen.queryByText("+$380.00")).not.toBeInTheDocument();
   });
 
-  it("renders trophies from the same totals fold, PEA counted", () => {
+  it("renders the records card from the same totals fold, PEA counted", () => {
     wrap(<ProfilePage />, walletCtx(A), fixtureStore(ROUNDS));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Records" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Best round")).toBeInTheDocument();
     // Round 50: 0.4 won on 0.1 deployed = +0.3 ETH, PLUS its 1 PEA
-    // emission at 0.01 ETH. The trophy must agree with the table's Net
+    // emission at 0.01 ETH. The record must agree with the table's Net
     // column, which counts the same emission.
-    expect(screen.getByText("+0.31 ETH")).toBeInTheDocument();
+    const best = screen.getByText("+0.31 ETH");
+    // ONE text node, so the unit can never wrap away from the number the
+    // way "ETH" did onto its own line beside the round id.
+    expect(best).toHaveClass("whitespace-nowrap");
+    // The round id sat here and pushed the pair past the card (user
+    // 2026-07-31: it is not needed). Scoped to THIS card — the history
+    // table's own round ids are correct and must stay.
+    const card = screen
+      .getByRole("heading", { level: 2, name: "Records" })
+      .closest("div.rounded-\\[16px\\]")!;
+    expect(within(card as HTMLElement).queryByText(/#\d/)).toBeNull();
   });
 
   it("the Net column counts PEA, so a round can be up on a down ETH leg", () => {

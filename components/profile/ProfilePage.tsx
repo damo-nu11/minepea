@@ -7,7 +7,7 @@
  * URL — no nav entries anywhere (user decision 4).
  *
  * Layout: the site's WideContainer, then two columns ≥lg in the user's
- * chosen shape — LEFT identity + trophies + portfolio + staking, RIGHT
+ * chosen shape — LEFT identity + records + portfolio + staking, RIGHT
  * round history. Identity editing goes through the SAME useProfileEditor
  * hook as the drawer: one seam, zero drift.
  *
@@ -77,33 +77,53 @@ function stamp(atMs: number): string {
 // useUserRounds returns the folded totals, StatCard carries the up/down
 // tone prop — so re-adding them is a render, not a rebuild.
 
-function Trophies({ totals }: { totals: UserTotalsVM }) {
+/**
+ * "Records", not "Trophies" (user 2026-07-31): these are three measured
+ * facts about a mining history, and dressing plain numbers up as awards
+ * oversells them — a wallet whose best round made a fraction of a cent has
+ * not won anything.
+ *
+ * Every value is ONE unbreakable line. The round id used to sit beside the
+ * ETH figure, which pushed the pair past the 272px card and wrapped "ETH"
+ * onto a second line, breaking the row's h-10 and reading as a bug. The id
+ * is gone (user: not needed) and whitespace-nowrap makes a unit that can
+ * separate from its number structurally impossible.
+ */
+function Records({ totals }: { totals: UserTotalsVM }) {
+  const V = "tnum whitespace-nowrap text-[15px] font-semibold";
   return (
-    <ChartCard title="Trophies" headingAs="h2">
+    <ChartCard title="Records" headingAs="h2">
       <div className="flex flex-col">
         <Row label="Best round">
-          {totals.bestRound && totals.bestRound.netEth > 0 ? (
-            <span className="flex items-baseline gap-2">
-              <span className="tnum text-[15px] font-semibold text-accent">
-                {totals.bestRound.netEthFormatted} ETH
-              </span>
-              <span className="tnum text-[12.5px] text-fg-muted">
-                {fmtRoundId(totals.bestRound.roundId)}
-              </span>
-            </span>
-          ) : (
-            <span className="text-[15px] text-fg-muted">—</span>
-          )}
+          <span
+            className={
+              totals.bestRound && totals.bestRound.netEth > 0
+                ? `${V} text-accent`
+                : `${V} text-fg-muted`
+            }
+          >
+            {totals.bestRound && totals.bestRound.netEth > 0
+              ? `${totals.bestRound.netEthFormatted} ETH`
+              : "—"}
+          </span>
         </Row>
         <Row label="Best win streak">
-          <span className="tnum text-[15px] font-semibold text-fg">
+          <span
+            className={
+              totals.bestWinStreak > 0 ? `${V} text-fg` : `${V} text-fg-muted`
+            }
+          >
             {totals.bestWinStreak > 0
               ? `${fmtInt(totals.bestWinStreak)} in a row`
               : "—"}
           </span>
         </Row>
         <Row label="Peapot hits">
-          <span className="tnum text-[15px] font-semibold text-fg">
+          {/* A zero is muted like everywhere else on the page: full-white
+              bold for "none yet" gives it the weight of an achievement. */}
+          <span
+            className={totals.peapotHits ? `${V} text-fg` : `${V} text-fg-muted`}
+          >
             {totals.peapotHitsFormatted}
           </span>
         </Row>
@@ -513,7 +533,7 @@ export function ProfilePage() {
       {wallet.status === "connected" && (
         <div className="mt-10 pb-12">
           <div className="grid gap-6 xl:grid-cols-[320px_1fr] xl:items-start">
-            {/* LEFT: identity + trophies + portfolio + staking */}
+            {/* LEFT: identity + records + portfolio + staking */}
             <div className="flex flex-col gap-6">
               <ChartCard>
                 <div className="flex justify-center">
@@ -691,7 +711,7 @@ export function ProfilePage() {
               </ChartCard>
 
               {history.data?.totals && (
-                <Trophies totals={history.data.totals} />
+                <Records totals={history.data.totals} />
               )}
 
               <ChartCard title="Portfolio" headingAs="h2">

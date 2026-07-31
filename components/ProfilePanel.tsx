@@ -390,7 +390,7 @@ export function ProfilePanel({
           </Row>
         </div>
 
-        {/* Full page: round history, trophies and stats live there. This
+        {/* Full page: round history, records and stats live there. This
             is /profile's ONLY entry point by design (user 2026-07-30: no
             nav slot anywhere), so it is never conditional. onClose is
             load-bearing, not tidiness: the drawer is a portal that
