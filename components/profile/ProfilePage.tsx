@@ -52,7 +52,10 @@ import {
 } from "@/lib/format";
 import { usePrices } from "@/lib/hooks/useGame";
 import { useUserHistory } from "@/lib/hooks/useUserHistory";
-import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
+import {
+  USERNAME_MAX,
+  useProfileEditor,
+} from "@/lib/hooks/useProfileEditor";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
 import type { HookResult, UserRoundVM, UserTotalsVM } from "@/lib/types";
 import { useBalances, useWallet } from "@/lib/walletContext";
@@ -554,7 +557,7 @@ export function ProfilePage() {
                     <button
                       type="button"
                       onClick={editor.removeAvatar}
-                      className="cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                      className="focus-ring cursor-pointer rounded px-0.5 text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
                     >
                       Remove photo
                     </button>
@@ -598,7 +601,14 @@ export function ProfilePage() {
                   </Row>
                   <Row label="Username">
                     {editor.editing ? (
-                      <span className="flex items-center gap-2">
+                      // FLUID, never a fixed width. A w-36 input plus Save
+                      // needed 301px beside the label; this card's content
+                      // box is 272px (320 column − 24 padding each side),
+                      // so Save hung 29px past the card edge. min-w-0 is
+                      // load-bearing twice: flex items floor at their
+                      // content width, and an input's floor is its `size`
+                      // attribute default of ~20 characters.
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
                         <input
                           ref={inputRef}
                           value={editor.draft}
@@ -608,12 +618,13 @@ export function ProfilePage() {
                             if (e.key === "Escape") editor.cancelEdit();
                           }}
                           aria-label="Username"
-                          className="tnum h-8 w-36 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
+                          maxLength={USERNAME_MAX}
+                          className="tnum h-8 w-full min-w-0 flex-1 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
                         />
                         <button
                           type="button"
                           onClick={editor.saveUsername}
-                          className="cursor-pointer text-[13px] font-bold text-accent"
+                          className="focus-ring shrink-0 cursor-pointer rounded px-0.5 text-[13px] font-bold text-accent"
                         >
                           Save
                         </button>
@@ -629,7 +640,7 @@ export function ProfilePage() {
                           type="button"
                           aria-label="Edit username"
                           onClick={editor.startEdit}
-                          className="shrink-0 cursor-pointer text-fg-muted transition-colors hover:text-fg"
+                          className="focus-ring shrink-0 cursor-pointer rounded text-fg-muted transition-colors hover:text-fg"
                         >
                           <PencilIcon size={14} />
                         </button>
@@ -650,7 +661,7 @@ export function ProfilePage() {
                           <button
                             type="button"
                             onClick={() => void editor.disconnectDiscord()}
-                            className="shrink-0 cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                            className="focus-ring shrink-0 cursor-pointer rounded px-0.5 text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
                           >
                             Unlink
                           </button>
@@ -659,7 +670,7 @@ export function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => editor.discord?.link()}
-                          className="flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
+                          className="focus-ring flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
                         >
                           <DiscordIcon size={15} />
                           Connect

@@ -33,6 +33,11 @@ import { useAccessToken, useDiscord, useWallet } from "@/lib/walletContext";
 
 export const AVATAR_SIZE = 128;
 
+/** Longest username we keep. Both the save clamp below and the inputs'
+ * maxLength read THIS: when only the clamp enforced it, the field happily
+ * accepted 60 characters, showed all 60, and silently dropped 36 on save. */
+export const USERNAME_MAX = 24;
+
 /** localStorage that never throws (blocked storage / quota — audit). */
 export function safeSet(key: string, value: string) {
   try {
@@ -220,7 +225,7 @@ export function useProfileEditor() {
 
   const saveUsername = () => {
     if (!addr) return;
-    const clean = draft.trim().slice(0, 24);
+    const clean = draft.trim().slice(0, USERNAME_MAX);
     setUsername(clean);
     safeSet(usernameKey(addr), clean);
     announceProfileChange();

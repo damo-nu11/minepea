@@ -43,7 +43,10 @@ import {
 import { AvatarCropper } from "@/components/profile/AvatarCropper";
 import { PeaRow, Row } from "@/components/profile/rows";
 import { fmtToken, shortAddr } from "@/lib/format";
-import { useProfileEditor } from "@/lib/hooks/useProfileEditor";
+import {
+  USERNAME_MAX,
+  useProfileEditor,
+} from "@/lib/hooks/useProfileEditor";
 import { useRewards, useStakingPosition } from "@/lib/user/userData";
 import { useBalances, useWallet } from "@/lib/walletContext";
 
@@ -213,7 +216,7 @@ export function ProfilePanel({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="-ml-2 flex size-9 cursor-pointer items-center justify-center self-start rounded-full text-fg-muted transition-colors hover:text-fg"
+          className="focus-ring -ml-2 flex size-9 cursor-pointer items-center justify-center self-start rounded-full text-fg-muted transition-colors hover:text-fg"
         >
           ✕
         </button>
@@ -237,7 +240,7 @@ export function ProfilePanel({
               type="button"
               aria-label="Upload profile picture"
               onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-0.5 -right-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full border border-line-slate bg-surface text-fg-body transition-colors hover:border-accent hover:text-accent"
+              className="focus-ring absolute -bottom-0.5 -right-0.5 flex size-8 cursor-pointer items-center justify-center rounded-full border border-line-slate bg-surface text-fg-body transition-colors hover:border-accent hover:text-accent"
             >
               <CameraIcon size={14} />
             </button>
@@ -261,7 +264,7 @@ export function ProfilePanel({
             <button
               type="button"
               onClick={editor.removeAvatar}
-              className="cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+              className="focus-ring cursor-pointer rounded px-0.5 text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
             >
               Remove photo
             </button>
@@ -296,7 +299,10 @@ export function ProfilePanel({
           </Row>
           <Row label="Username">
             {editor.editing ? (
-              <span className="flex items-center gap-2">
+              // Fluid, matching /profile exactly — one editor, two
+              // surfaces, no drift. The drawer has room for a fixed width
+              // and the profile card does not, so neither uses one.
+              <span className="flex min-w-0 flex-1 items-center gap-2">
                 <input
                   ref={inputRef}
                   value={editor.draft}
@@ -308,12 +314,13 @@ export function ProfilePanel({
                     // across same-node listeners; see editingRef above).
                   }}
                   aria-label="Username"
-                  className="tnum h-8 w-36 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
+                  maxLength={USERNAME_MAX}
+                  className="tnum h-8 w-full min-w-0 flex-1 rounded-lg border border-line-slate bg-surface px-2 text-[14px] text-fg outline-none focus:border-accent"
                 />
                 <button
                   type="button"
                   onClick={editor.saveUsername}
-                  className="cursor-pointer text-[13px] font-bold text-accent"
+                  className="focus-ring shrink-0 cursor-pointer rounded px-0.5 text-[13px] font-bold text-accent"
                 >
                   Save
                 </button>
@@ -329,7 +336,7 @@ export function ProfilePanel({
                   type="button"
                   aria-label="Edit username"
                   onClick={editor.startEdit}
-                  className="shrink-0 cursor-pointer text-fg-muted transition-colors hover:text-fg"
+                  className="focus-ring shrink-0 cursor-pointer rounded text-fg-muted transition-colors hover:text-fg"
                 >
                   <PencilIcon size={14} />
                 </button>
@@ -347,7 +354,7 @@ export function ProfilePanel({
                   <button
                     type="button"
                     onClick={() => void editor.disconnectDiscord()}
-                    className="shrink-0 cursor-pointer text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
+                    className="focus-ring shrink-0 cursor-pointer rounded px-0.5 text-[12px] font-light text-fg-muted transition-colors hover:text-danger"
                   >
                     Unlink
                   </button>
@@ -357,7 +364,7 @@ export function ProfilePanel({
                   <button
                     type="button"
                     onClick={() => editor.discord?.link()}
-                    className="flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
+                    className="focus-ring flex h-8 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-accent px-3 text-[13px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
                   >
                     <DiscordIcon size={15} />
                     Connect
@@ -423,7 +430,7 @@ export function ProfilePanel({
               disconnect();
               onClose();
             }}
-            className="h-[46px] w-full cursor-pointer rounded-full border-[1.5px] border-line-slate text-[15px] font-semibold text-fg-body transition-colors hover:border-danger hover:text-danger"
+            className="focus-ring h-[46px] w-full cursor-pointer rounded-full border-[1.5px] border-line-slate text-[15px] font-semibold text-fg-body transition-colors hover:border-danger hover:text-danger"
           >
             Disconnect
           </button>

@@ -20,6 +20,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ConnectButton } from "@/components/ConnectButton";
 import { ProfilePage } from "@/components/profile/ProfilePage";
 import { EngineProvider } from "@/lib/engineContext";
+import { USERNAME_MAX } from "@/lib/hooks/useProfileEditor";
 import { ethToWei } from "@/lib/mock/engine";
 import { SERVER_SNAPSHOT } from "@/lib/gameSnapshot";
 import { announceProfileChange, usernameKey } from "@/lib/profile";
@@ -159,6 +160,38 @@ describe("ProfilePage P0", () => {
     expect(document.activeElement).toBe(input);
     fireEvent.change(input, { target: { value: "ab" } });
     expect(document.activeElement).toBe(input);
+  });
+
+  it("the username field is fluid and length-capped on BOTH surfaces", async () => {
+    // Measured 2026-07-31: a fixed w-36 input plus the Save button needed
+    // 301px beside the label, and the /profile card's content box is 272px
+    // (320 column − ChartCard p-6 each side), so Save hung 29px past the
+    // card edge. A fixed width cannot be right on two surfaces of
+    // different widths, so neither has one. min-w-0 matters twice over:
+    // flex items floor at content width, and an input's floor is its
+    // `size` default of ~20 characters.
+    const check = (input: HTMLElement, where: string) => {
+      const cls = input.className;
+      expect(cls, `${where}: no fixed width`).not.toMatch(/(^|\s)w-\d/);
+      expect(cls, `${where}: can shrink`).toMatch(/min-w-0/);
+      expect(cls, `${where}: takes the free space`).toMatch(/flex-1/);
+      // saveUsername slices to the same constant. When only the save
+      // clamped, the field took 60 characters and dropped 36 silently.
+      expect(input).toHaveAttribute("maxlength", String(USERNAME_MAX));
+    };
+
+    const page = wrap(<ProfilePage />, walletCtx(A));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit username" }));
+    check(screen.getByRole("textbox", { name: "Username" }), "/profile");
+    page.unmount();
+
+    wrap(<ConnectButton />, walletCtx(A));
+    fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
+    expect(
+      await screen.findByRole("dialog", { name: "Profile" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit username" }));
+    check(screen.getByRole("textbox", { name: "Username" }), "drawer");
   });
 
   it("clears the edit buffer on a wallet switch (never writes A's name to B)", async () => {

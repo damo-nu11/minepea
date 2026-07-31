@@ -13,9 +13,17 @@ export function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-10 items-center justify-between gap-4">
+    <div className="flex h-10 items-center gap-4">
       <span className="shrink-0 text-[15px] text-fg-muted">{label}</span>
-      {children}
+      {/* The value slot owns the remaining width and is allowed to shrink.
+          Without this the label was shrink-0 and the value sized to its
+          own content, so anything with a fixed width inside it simply hung
+          past the row (the username editor did, by 29px in the 272px
+          /profile card). Rows read the same as before — the value still
+          sits hard right — but a value can no longer escape its row. */}
+      <span className="flex min-w-0 flex-1 items-center justify-end">
+        {children}
+      </span>
     </div>
   );
 }
