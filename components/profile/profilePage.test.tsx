@@ -129,24 +129,17 @@ function wrap(
 
 describe("ProfilePage P0", () => {
   it("View full profile closes the drawer and restores body scroll", async () => {
-    // The drawer's link is env-gated while /profile is being built; the
-    // close + scroll-restore contract is what this pins for when it ships.
-    vi.stubEnv("NEXT_PUBLIC_PROFILE_PAGE", "1");
-    try {
-      wrap(<ConnectButton />, walletCtx(A));
-      fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
-      expect(
-        await screen.findByRole("dialog", { name: "Profile" }),
-      ).toBeInTheDocument();
-      expect(document.body.style.overflow).toBe("hidden");
-      fireEvent.click(screen.getByRole("link", { name: "View full profile" }));
-      expect(
-        screen.queryByRole("dialog", { name: "Profile" }),
-      ).not.toBeInTheDocument();
-      expect(document.body.style.overflow).not.toBe("hidden");
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    wrap(<ConnectButton />, walletCtx(A));
+    fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
+    expect(
+      await screen.findByRole("dialog", { name: "Profile" }),
+    ).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.click(screen.getByRole("link", { name: "View full profile" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Profile" }),
+    ).not.toBeInTheDocument();
+    expect(document.body.style.overflow).not.toBe("hidden");
   });
 
   it("keeps focus in the username field while typing (drawer)", async () => {
@@ -188,15 +181,18 @@ describe("ProfilePage P0", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the drawer link until the page is launched (env gate)", async () => {
+  it("always offers the link: it is /profile's only entry point", async () => {
+    // No nav slot anywhere (user 2026-07-30), so if this button stops
+    // rendering the page becomes unreachable for everyone who does not
+    // already know the URL. It carries no env gate for that reason.
     wrap(<ConnectButton />, walletCtx(A));
     fireEvent.click(screen.getByRole("button", { name: /0x1111/i }));
     expect(
       await screen.findByRole("dialog", { name: "Profile" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "View full profile" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("link", { name: "View full profile" }),
+    ).toHaveAttribute("href", "/profile");
   });
 
   it("wears THIS wallet's profile, never another wallet's", async () => {

@@ -383,21 +383,19 @@ export function ProfilePanel({
           </Row>
         </div>
 
-        {/* Full page: history, PnL and stats live there; closing first
-            keeps the drawer's scroll lock from following us.
-            ENV-GATED while /profile is still being built (user
-            2026-07-30): the route stays reachable by URL for us, but no
-            miner is handed a door to a half-finished page. Flip
-            NEXT_PUBLIC_PROFILE_PAGE=1 in Vercel to launch it. */}
-        {process.env.NEXT_PUBLIC_PROFILE_PAGE === "1" && (
-          <Link
-            href="/profile"
-            onClick={onClose}
-            className="focus-ring mt-6 flex h-[42px] items-center justify-center rounded-full border-[1.5px] border-accent text-[14px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
-          >
-            View full profile
-          </Link>
-        )}
+        {/* Full page: round history, trophies and stats live there. This
+            is /profile's ONLY entry point by design (user 2026-07-30: no
+            nav slot anywhere), so it is never conditional. onClose is
+            load-bearing, not tidiness: the drawer is a portal that
+            survives the route change, and its scroll lock would follow us
+            onto the page we just opened. Test-pinned. */}
+        <Link
+          href="/profile"
+          onClick={onClose}
+          className="focus-ring mt-6 flex h-[42px] items-center justify-center rounded-full border-[1.5px] border-accent text-[14px] font-bold text-accent transition-colors hover:bg-accent hover:text-on-light"
+        >
+          View full profile
+        </Link>
 
         <h2 className="font-wordmark mt-8 text-[20px] font-bold tracking-[-0.01em] text-fg">
           Portfolio
