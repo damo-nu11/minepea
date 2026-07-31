@@ -170,19 +170,26 @@ function HistoryCard({
             >
               Winners only
             </span>
+            {/* EVERY dimension here is px, and the knob rides in flow as a
+                padded flex item rather than absolutely positioned. The
+                first build mixed rem sizing (w-8 = 2rem) with px offsets
+                (translate-x-[17px]), so any root font size under 16px
+                shrank the track while the knob still travelled its fixed
+                distance and walked off the right edge. Travel is exactly
+                the space left over: 44 − 3 − 3 padding − 18 knob = 20. */}
             <span
               aria-hidden
-              className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+              className={`flex h-[24px] w-[44px] shrink-0 items-center rounded-full p-[3px] transition-colors duration-200 motion-reduce:transition-none ${
                 winnersOnly
-                  ? "bg-accent"
-                  : "bg-line-slate group-hover:bg-line-slate/70"
+                  ? "bg-accent shadow-[0_0_14px_-3px_var(--color-accent)]"
+                  : "bg-surface-active ring-1 ring-line-slate ring-inset"
               }`}
             >
               <span
-                className={`absolute top-[3px] size-3 rounded-full transition-transform motion-reduce:transition-none ${
+                className={`size-[18px] shrink-0 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out motion-reduce:transition-none ${
                   winnersOnly
-                    ? "translate-x-[17px] bg-on-light"
-                    : "translate-x-[3px] bg-fg-muted"
+                    ? "translate-x-[20px] bg-on-light"
+                    : "translate-x-0 bg-fg-muted group-hover:bg-fg-body"
                 }`}
               />
             </span>
