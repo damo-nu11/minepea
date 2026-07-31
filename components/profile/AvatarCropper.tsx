@@ -6,6 +6,11 @@
  * was centre-cropped silently, so a face off-centre in the source came out
  * off-centre in the avatar with no way to fix it.
  *
+ * The frame is a plain SQUARE box (user 2026-07-31): whatever sits inside
+ * it is the avatar. The app renders avatars circular, but the cropper does
+ * not preview that — a mask over the frame is one more thing to misread,
+ * and its shadow was eating the box's own border on zoom.
+ *
  * Geometry: the image is scaled to COVER the square viewport at zoom 1 and
  * the offset is clamped so it can never uncover an edge — there is no
  * combination of drag and zoom that produces a gap, so the output never
@@ -19,8 +24,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-/** Viewport the user frames in. Output is written at OUTPUT_SIZE. */
-const VIEW = 264;
+/** Viewport the user frames in. Output is written at OUTPUT_SIZE.
+ * 240 is the largest square that fits a 320px screen once the backdrop
+ * padding, panel border and panel padding are taken out (246px of content
+ * box) — a 264px frame overflowed and sat flush left there. */
+const VIEW = 240;
 /** 256 keeps a retina-sharp 112px avatar while staying far inside the
  * profile row's size budget (a 128px source was visibly soft on the page,
  * and this needs no schema change). */
@@ -61,32 +69,54 @@ export function AvatarCropper({
   };
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
 
-  // Decode the pick. An object URL is revoked as soon as it has loaded so
-  // a cancelled crop leaks nothing.
+  /**
+   * Read the pick as a DATA URL, not an object URL.
+   *
+   * An object URL has to be revoked, and the only correct place to do that
+   * is effect cleanup — which React runs between its two development
+   * mounts. That revoked the URL out from under the image already
+   * committed to state, so the frame rendered a broken-image icon and
+   * nothing else. A data URL has no lifecycle to get wrong: it dies with
+   * the component.
+   */
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      // Centre it in the same commit the image lands, so there is never a
-      // frame of the photo pinned to the top-left corner.
-      const base = Math.max(
-        VIEW / image.naturalWidth,
-        VIEW / image.naturalHeight,
-      );
-      setImg(image);
-      setOffset({
-        x: (VIEW - image.naturalWidth * base) / 2,
-        y: (VIEW - image.naturalHeight * base) / 2,
-      });
+    let cancelled = false;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (cancelled) return;
+      const image = new Image();
+      image.onload = () => {
+        if (cancelled) return;
+        if (!image.naturalWidth || !image.naturalHeight) {
+          setFailed(true);
+          return;
+        }
+        // Centre in the same commit the image lands, so there is never a
+        // frame of the photo pinned to the top-left corner.
+        const base = Math.max(
+          VIEW / image.naturalWidth,
+          VIEW / image.naturalHeight,
+        );
+        setImg(image);
+        setOffset({
+          x: (VIEW - image.naturalWidth * base) / 2,
+          y: (VIEW - image.naturalHeight * base) / 2,
+        });
+      };
+      image.onerror = () => {
+        if (!cancelled) setFailed(true);
+      };
+      image.src = String(reader.result);
     };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      setFailed(true);
+    reader.onerror = () => {
+      if (!cancelled) setFailed(true);
     };
-    image.src = url;
-    return () => URL.revokeObjectURL(url);
+    reader.readAsDataURL(file);
+    return () => {
+      cancelled = true;
+    };
   }, [file]);
 
   /** Scale at which the image exactly covers the viewport. */
@@ -109,6 +139,32 @@ export function AvatarCropper({
   /** Clamped at READ time, so zooming out re-frames without a state
    * round trip and the stored offset is never the source of a gap. */
   const pos = clamp(offset);
+
+  /**
+   * Zoom about a fixed point instead of the image's top-left corner.
+   * Without this the framed content slid down-right on every zoom step
+   * and the user had to re-pan after each one. Anchor is the viewport
+   * centre for the slider, the cursor for the wheel, the midpoint for a
+   * pinch. Writes the clamped offset so a zoom-out cannot leave a stale
+   * far-corner position waiting to teleport back on the next zoom-in.
+   */
+  const applyZoom = useCallback(
+    (next: number, ax = VIEW / 2, ay = VIEW / 2) => {
+      if (!img) return;
+      const z = Math.min(MAX_ZOOM, Math.max(1, next));
+      const nextScale =
+        Math.max(VIEW / img.naturalWidth, VIEW / img.naturalHeight) * z;
+      const ratio = nextScale / scale;
+      const nw = img.naturalWidth * nextScale;
+      const nh = img.naturalHeight * nextScale;
+      setOffset({
+        x: Math.min(0, Math.max(VIEW - nw, ax - (ax - pos.x) * ratio)),
+        y: Math.min(0, Math.max(VIEW - nh, ay - (ay - pos.y) * ratio)),
+      });
+      setZoom(z);
+    },
+    [img, scale, pos.x, pos.y],
+  );
 
   // Dialog contract.
   useEffect(() => {
@@ -155,6 +211,10 @@ export function AvatarCropper({
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     // A second finger starts a pinch and ends any drag in progress, so
     // the image does not lurch toward one finger mid-gesture.
+    if (pointers.current.size > 2) {
+      dragRef.current = null;
+      return;
+    }
     if (pointers.current.size === 2) {
       pinchRef.current = { dist: pointerDistance(), zoom };
       dragRef.current = null;
@@ -169,10 +229,13 @@ export function AvatarCropper({
     const pinch = pinchRef.current;
     if (pinch && pointers.current.size === 2) {
       const d = pointerDistance();
-      if (d > 0 && pinch.dist > 0)
-        setZoom(
-          Math.min(MAX_ZOOM, Math.max(1, (pinch.zoom * d) / pinch.dist)),
-        );
+      if (d > 0 && pinch.dist > 0) {
+        const [a, b] = [...pointers.current.values()];
+        const rect = frameRef.current?.getBoundingClientRect();
+        const mx = rect ? (a.x + b.x) / 2 - rect.left : VIEW / 2;
+        const my = rect ? (a.y + b.y) / 2 - rect.top : VIEW / 2;
+        applyZoom((pinch.zoom * d) / pinch.dist, mx, my);
+      }
       return;
     }
     const d = dragRef.current;
@@ -183,6 +246,7 @@ export function AvatarCropper({
   const endDrag = (e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinchRef.current = null;
+    else pinchRef.current = { dist: pointerDistance(), zoom };
     // Lifting one finger of a pinch must not resume a stale drag anchor.
     if (pointers.current.size === 0) dragRef.current = null;
     else {
@@ -193,8 +257,15 @@ export function AvatarCropper({
 
   const onWheel = (e: React.WheelEvent) => {
     if (!img) return;
-    setZoom((z) =>
-      Math.min(MAX_ZOOM, Math.max(1, z * (e.deltaY < 0 ? 1.12 : 1 / 1.12))),
+    const rect = frameRef.current?.getBoundingClientRect();
+    // deltaMode 1 is lines, 2 is pages; normalise so a trackpad's stream
+    // of small deltas does not multiply straight to MAX_ZOOM.
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? VIEW : 1;
+    const d = Math.max(-120, Math.min(120, e.deltaY * unit));
+    applyZoom(
+      zoom * Math.exp(-d * 0.0022),
+      rect ? e.clientX - rect.left : VIEW / 2,
+      rect ? e.clientY - rect.top : VIEW / 2,
     );
   };
 
@@ -221,8 +292,13 @@ export function AvatarCropper({
     canvas.height = OUTPUT_SIZE;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    // Map the viewport window back into source pixels: what the circle
-    // shows is exactly what gets written.
+    // JPEG has no alpha: without an explicit matte a transparent PNG
+    // flattens to black in one engine and white in another.
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+    ctx.imageSmoothingQuality = "high";
+    // Map the viewport window back into source pixels: the geometry the
+    // circle previewed (resampling and JPEG quality aside).
     const sx = -pos.x / scale;
     const sy = -pos.y / scale;
     const s = VIEW / scale;
@@ -230,6 +306,10 @@ export function AvatarCropper({
     let out = canvas.toDataURL("image/jpeg", QUALITY_LADDER[0]);
     for (let i = 1; i < QUALITY_LADDER.length && out.length > MAX_DATA_URL; i++)
       out = canvas.toDataURL("image/jpeg", QUALITY_LADDER[i]);
+    if (out.length > MAX_DATA_URL) {
+      setFailed(true);
+      return;
+    }
     onApply(out);
   };
 
@@ -245,7 +325,7 @@ export function AvatarCropper({
         role="dialog"
         aria-modal="true"
         aria-label="Position your photo"
-        className="relative flex w-full max-w-[340px] flex-col gap-4 rounded-[16px] border border-line-slate bg-bg p-5"
+        className="scroll-slim relative flex max-h-[90dvh] w-full max-w-[340px] flex-col gap-4 overflow-y-auto rounded-[16px] border border-line-slate bg-bg p-5"
       >
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-wordmark text-[17px] font-bold tracking-[-0.01em] text-fg">
@@ -281,6 +361,7 @@ export function AvatarCropper({
               onPointerCancel={endDrag}
               onLostPointerCapture={endDrag}
               onWheel={onWheel}
+              ref={frameRef}
               style={{ width: VIEW, height: VIEW }}
               className="focus-ring relative mx-auto cursor-grab touch-none select-none overflow-hidden rounded-[12px] bg-surface active:cursor-grabbing"
             >
@@ -304,10 +385,14 @@ export function AvatarCropper({
                   outward shadow, clipped by the frame's overflow. Plain
                   box-shadow rather than a mask-image, which renders
                   inconsistently across engines. */}
+              {/* One square crop box, nothing else (user 2026-07-31).
+                  The circular mask cast a huge inset shadow that swallowed
+                  the frame's own border as soon as the image grew past it,
+                  so the box appeared to lose its right and bottom edges on
+                  zoom. What you frame here is exactly what is written. */}
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-0 rounded-full border border-accent/60"
-                style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.62)" }}
+                className="pointer-events-none absolute inset-0 rounded-[12px] border-[1.5px] border-accent/70"
               />
             </div>
 
@@ -319,9 +404,10 @@ export function AvatarCropper({
                 max={MAX_ZOOM}
                 step={0.01}
                 value={zoom}
-                onChange={(e) => setZoom(Number(e.target.value))}
+                onChange={(e) => applyZoom(Number(e.target.value))}
                 aria-label="Zoom"
-                className="focus-ring h-1 w-full cursor-pointer appearance-none rounded-full bg-line-slate accent-accent"
+                aria-valuetext={`${zoom.toFixed(1)} times`}
+                className="focus-ring w-full cursor-pointer accent-accent"
               />
             </label>
 

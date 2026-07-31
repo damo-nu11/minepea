@@ -8,7 +8,7 @@
  * (disconnect lives inside the panel).
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ProfilePanel } from "@/components/ProfilePanel";
 import { shortAddr } from "@/lib/format";
 import { useWallet } from "@/lib/walletContext";
@@ -16,6 +16,10 @@ import { useWallet } from "@/lib/walletContext";
 export function ConnectButton() {
   const { status, address, connect } = useWallet();
   const [panelOpen, setPanelOpen] = useState(false);
+  /** Stable: as a fresh arrow this re-ran the drawer's dialog effect on
+   * every ConnectButton render, and that effect's cleanup/setup pair
+   * moves focus — yanking it out of whatever the user was using. */
+  const closePanel = useCallback(() => setPanelOpen(false), []);
 
   const label =
     status === "connected" && address
@@ -47,7 +51,7 @@ export function ConnectButton() {
       >
         {label}
       </button>
-      <ProfilePanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+      <ProfilePanel open={panelOpen} onClose={closePanel} />
     </>
   );
 }

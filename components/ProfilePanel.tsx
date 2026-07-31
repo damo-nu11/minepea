@@ -75,6 +75,12 @@ export function ProfilePanel({
   useEffect(() => {
     editingRef.current = editor.editing;
   }, [editor.editing]);
+  /** Mirror for the same reason: the key handler must see the current
+   * crop state without the effect re-running (which would move focus). */
+  const cropOpenRef = useRef(false);
+  useEffect(() => {
+    cropOpenRef.current = editor.pendingFile !== null;
+  }, [editor.pendingFile]);
 
   // Transient state must not survive a close/reopen (audit): reset via the
   // adjust-state-during-render pattern the moment the drawer is closed.
@@ -91,6 +97,12 @@ export function ProfilePanel({
     const opener = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
+      // The cropper opens ON TOP of this drawer and installs its own
+      // document-level trap. Both would fire on the same event and this
+      // one registered first, so Tab always landed back on the drawer's
+      // ✕ and Escape closed the whole drawer instead of the crop. While
+      // a crop is open the topmost dialog owns the keyboard.
+      if (cropOpenRef.current) return;
       if (e.key === "Escape") {
         // Mid-edit Escape cancels the EDIT; only a second Escape closes.
         if (editingRef.current) {
